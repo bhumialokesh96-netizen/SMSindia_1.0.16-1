@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="16dp"
+    app:cardCornerRadius="24dp"
+    app:cardElevation="12dp"
+    app:cardBackgroundColor="#FFFFFF">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingBottom="24dp">
+
+        <!-- Header with Color -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#6200EE"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingVertical="24dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Daily Rewards"
+                android:textColor="#FFFFFF"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_streak_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Current Streak: Day 1"
+                android:textColor="#E0E0E0"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Grid of Days -->
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:alignmentMode="alignMargins"
+            android:columnCount="5"
+            android:paddingHorizontal="10dp"
+            android:rowCount="2"
+            android:useDefaultMargins="true">
+
+            <!-- ROW 1: Days 1-5 -->
+            <include layout="@layout/item_day_reward" android:id="@+id/day1" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day2" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day3" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day4" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day5" />
+
+            <!-- ROW 2: Days 6-10 -->
+            <include layout="@layout/item_day_reward" android:id="@+id/day6" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day7" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day8" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day9" />
+            <include layout="@layout/item_day_reward" android:id="@+id/day10" />
+
+        </GridLayout>
+
+        <!-- Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="24dp"
+            android:layout_marginTop="10dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_claim_reward"
+                android:layout_width="match_parent"
+                android:layout_height="60dp"
+                android:text="CLAIM REWARD"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                app:cornerRadius="30dp"
+                android:backgroundTint="#FFC107"
+                android:textColor="#000000"
+                android:elevation="4dp"/>
+
+            <TextView
+                android:id="@+id/btn_close_dialog"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="16dp"
+                android:text="No, Thanks"
+                android:textColor="#9E9E9E"
+                android:textStyle="bold"
+                android:padding="10dp"/>
+        </LinearLayout>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
