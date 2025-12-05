@@ -1,6 +1,7 @@
 package com.smsindia.app.ui;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -10,8 +11,10 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,7 +32,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.smsindia.app.R;
-import com.smsindia.app.services.SmsMiningService;
+import com.smsindia.app.workers.SmsMiningService; // ✅ Correct Import
 
 import java.util.List;
 
@@ -49,14 +52,18 @@ public class TaskFragment extends Fragment {
     private int selectedSubId = -1;
     private int subId1 = -1;
     private int subId2 = -1;
-    private boolean isAutoMode = false;
+    private boolean isAutoMode = true; // Default to true for Batch Mode
     private boolean isServiceRunning = false;
     private String userId;
 
-    private BroadcastReceiver updateReceiver = new BroadcastReceiver() {
+    // 📡 RECEIVER: Listens for Updates AND "Batch Complete" Signal
+    private final BroadcastReceiver updateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (SmsMiningService.ACTION_UPDATE_UI.equals(intent.getAction())) {
+            String action = intent.getAction();
+
+            // 1. UPDATE LOGS & PROGRESS
+            if (SmsMiningService.ACTION_UPDATE_UI.equals(action)) {
                 String log = intent.getStringExtra("log");
                 int progress = intent.getIntExtra("progress", 0);
 
@@ -69,13 +76,17 @@ public class TaskFragment extends Fragment {
                 }
                 
                 progressTimer.setProgress(progress);
-                if (progress > 50 && progress < 100) {
-                     // Reverse calculate remaining time for UI
-                     int remaining = (int) (15.0 * (100.0 - progress) / 50.0);
-                     tvTimer.setText(remaining + "s");
+                if (progress > 0 && progress < 100) {
+                     tvTimer.setText(progress + "%");
                 } else {
                     tvTimer.setText("--");
                 }
+            }
+            
+            // 2. BATCH COMPLETE -> SHOW DIALOG
+            else if (SmsMiningService.ACTION_BATCH_COMPLETE.equals(action)) {
+                setUIStoppedState();
+                showSyncDialog(); // 🛑 TRIGGER THE LOCK
             }
         }
     };
@@ -113,9 +124,9 @@ public class TaskFragment extends Fragment {
         cardSim1.setOnClickListener(view -> selectSim(1));
         cardSim2.setOnClickListener(view -> selectSim(2));
 
+        // Auto mode switch is visual mainly, logic assumes batch mode
         switchAuto.setOnCheckedChangeListener((buttonView, isChecked) -> {
             isAutoMode = isChecked;
-            if(!isServiceRunning) btnAction.setText(isChecked ? "START AUTO LOOP" : "SEND SINGLE TASK");
         });
 
         btnAction.setOnClickListener(view -> {
@@ -135,7 +146,7 @@ public class TaskFragment extends Fragment {
 
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
         serviceIntent.putExtra("subId", selectedSubId);
-        serviceIntent.putExtra("autoMode", isAutoMode);
+        serviceIntent.putExtra("autoMode", true); // Always Auto for Batch Mode
         serviceIntent.putExtra("userId", userId);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -145,23 +156,93 @@ public class TaskFragment extends Fragment {
         }
 
         isServiceRunning = true;
-        btnAction.setText("STOP MINING");
+        btnAction.setText("STOP BATCH");
         btnAction.setTextColor(Color.RED);
-        tvStatus.setText("Initializing Secure Service...");
+        tvStatus.setText("Starting Batch of 10...");
+        progressTimer.setIndeterminate(true);
     }
 
     private void stopService() {
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
-        requireActivity().stopService(serviceIntent);
+        serviceIntent.setAction("STOP_SERVICE"); // Use explicit stop action
+        requireActivity().startService(serviceIntent);
+        setUIStoppedState();
     }
 
     private void setUIStoppedState() {
         isServiceRunning = false;
-        btnAction.setText(isAutoMode ? "START AUTO LOOP" : "SEND SINGLE TASK");
+        btnAction.setText("START MINING (10 SMS)");
         btnAction.setTextColor(Color.parseColor("#5D4037"));
         tvTimer.setText("00");
+        progressTimer.setIndeterminate(false);
         progressTimer.setProgress(0);
     }
+
+    // 🔒 THE UNSKIPPABLE LOCK DIALOG
+       // 🔒 THE CUSTOM POPUP DIALOG
+    private void showSyncDialog() {
+        if (getActivity() == null) return;
+
+        // 1. Inflate the Custom Layout
+        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        LayoutInflater inflater = requireActivity().getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_sync_timer, null);
+        builder.setView(dialogView);
+        builder.setCancelable(false); // 🚫 Locked
+
+        // 2. Get Views from the Layout
+        TextView tvTimer = dialogView.findViewById(R.id.dialog_tv_timer);
+        android.widget.ProgressBar progressBar = dialogView.findViewById(R.id.dialog_progress_bar);
+
+        // 3. Create & Show
+        AlertDialog dialog = builder.create();
+        
+        // Make background transparent so rounded corners show
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        
+        dialog.show();
+
+        // 4. BLOCK BACK BUTTON
+        dialog.setOnKeyListener((dialogInterface, keyCode, event) -> {
+            if (keyCode == KeyEvent.KEYCODE_BACK) {
+                // Shake effect or Toast
+                Toast.makeText(getActivity(), "⚠️ Synchronization in progress!", Toast.LENGTH_SHORT).show();
+                return true; 
+            }
+            return false;
+        });
+
+        // 5. START 60s TIMER
+        new CountDownTimer(60000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                if (dialog.isShowing()) {
+                    int secondsLeft = (int) (millisUntilFinished / 1000);
+                    tvTimer.setText(String.valueOf(secondsLeft));
+                    
+                    // Update Circular Progress (Max 60)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        progressBar.setProgress(secondsLeft, true); // Smooth animation
+                    } else {
+                        progressBar.setProgress(secondsLeft);
+                    }
+                }
+            }
+
+            @Override
+            public void onFinish() {
+                if (dialog.isShowing()) {
+                    dialog.dismiss();
+                    Toast.makeText(getActivity(), "✅ Synchronization Complete!", Toast.LENGTH_LONG).show();
+                    tvStatus.setText("Batch Complete. Ready for next.");
+                    logUI("Batch Sync Completed.");
+                }
+            }
+        }.start();
+    }
+
 
     private void loadSimCards() {
         SubscriptionManager sm = (SubscriptionManager) requireContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
@@ -209,10 +290,15 @@ public class TaskFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        // Register for BOTH actions
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(SmsMiningService.ACTION_UPDATE_UI);
+        filter.addAction(SmsMiningService.ACTION_BATCH_COMPLETE);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requireActivity().registerReceiver(updateReceiver, new IntentFilter(SmsMiningService.ACTION_UPDATE_UI), Context.RECEIVER_EXPORTED);
+            requireActivity().registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
-            requireActivity().registerReceiver(updateReceiver, new IntentFilter(SmsMiningService.ACTION_UPDATE_UI));
+            requireActivity().registerReceiver(updateReceiver, filter);
         }
     }
 
