@@ -16,14 +16,15 @@
         android:padding="16dp">
 
         <!-- Icon (Changed to Orange) -->
-        <ImageView
+                <ImageView
             android:id="@+id/img_milestone_icon"
-            android:layout_width="45dp"
-            android:layout_height="45dp"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
             android:src="@drawable/ic_task"
-            app:tint="#FF9800"
-            android:background="@drawable/bg_circle_edit"
-            android:padding="10dp"/>
+            app:tint="#FFFFFF"
+            android:background="@drawable/bg_green_ring"
+            android:padding="12dp"/>
+
 
         <!-- Text Info -->
         <LinearLayout

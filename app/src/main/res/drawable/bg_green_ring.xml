@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+
+    <!-- ORANGE Background inside -->
+    <solid android:color="#FF9800" />
+
+    <!-- BOLD GREEN Border (3dp thickness) -->
+    <stroke
+        android:width="3dp"
+        android:color="#4CAF50" />
+
+</shape>
