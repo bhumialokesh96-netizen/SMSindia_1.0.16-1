@@ -1,9 +1,7 @@
-package com.smsindia.app.workers;
+package com.smsindia.app.workers; // ✅ FIXED: Matches your Manifest
 
 import android.app.Activity;
 import android.app.Notification;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.TaskModel;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -24,6 +22,11 @@ import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+
+// ✅ Assumes SupabaseApi and TaskModel are in this same 'services' folder.
+// If they are in 'com.smsindia.app.service' (singular), uncomment the lines below:
+import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.service.TaskModel;
 
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -52,7 +55,7 @@ public class SmsMiningService extends Service {
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
-    public static final String ACTION_BATCH_COMPLETE = "com.smsindia.BATCH_COMPLETE"; // 🆕 New Signal
+    public static final String ACTION_BATCH_COMPLETE = "com.smsindia.BATCH_COMPLETE";
     private static final String SENT_ACTION = "SMS_SENT_CHECK";
     private static final double REWARD = 0.16;
     private static final String CHANNEL_ID = "SMS_MINING_CHANNEL";
@@ -72,7 +75,7 @@ public class SmsMiningService extends Service {
     private PowerManager.WakeLock wakeLock;
     
     private long currentRetryDelay = 1000;
-    private final long MAX_RETRY_DELAY = 60000; // Max 1 min sleep
+    private final long MAX_RETRY_DELAY = 60000; 
 
     @Override
     public void onCreate() {
@@ -80,8 +83,10 @@ public class SmsMiningService extends Service {
         db = FirebaseFirestore.getInstance();
         Retrofit retrofit = new Retrofit.Builder().baseUrl(SUPABASE_URL).addConverterFactory(GsonConverterFactory.create()).build();
         supabaseApi = retrofit.create(SupabaseApi.class);
+        
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMSMiner::CoreWakelock");
+        
         createNotificationChannel();
         registerSentReceiver();
     }
@@ -109,15 +114,19 @@ public class SmsMiningService extends Service {
     private void fetchAndClaimTask() {
         if (!isRunning) return;
 
-        // 🛑 STOP IF BATCH IS DONE
+        // 🛑 STOP IF BATCH IS DONE (10/10)
         if (tasksProcessedInBatch >= BATCH_LIMIT) {
+            sendBroadcastUpdate("Batch Complete! Syncing...", 100);
             sendBatchCompleteSignal();
             stopServiceSafely();
             return;
         }
 
         acquireCpu();
-        sendBroadcastUpdate("Processing " + (tasksProcessedInBatch + 1) + "/" + BATCH_LIMIT, 0);
+        
+        // 📊 CALCULATE PROGRESS (0 to 100%)
+        int progressPercent = (tasksProcessedInBatch * 100) / BATCH_LIMIT;
+        sendBroadcastUpdate("Processing " + (tasksProcessedInBatch + 1) + "/10", progressPercent);
 
         supabaseApi.getTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY)
             .enqueue(new Callback<List<TaskModel>>() {
@@ -182,13 +191,14 @@ public class SmsMiningService extends Service {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (getResultCode() == Activity.RESULT_OK) {
+                    sendBroadcastUpdate("Verifying...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
                     // Wait 8 seconds for DB verification
                     new Handler().postDelayed(() -> {
                         verifyViaDatabase(context, intent.getStringExtra("phone"), intent.getStringExtra("msgBody"), intent.getStringExtra("taskId"));
                     }, 8000); 
                 } else {
                     releaseCpu();
-                    // Even if failed, we count it as an attempt in the batch
+                    // Radio failed. We count it as a processed attempt to keep the batch moving.
                     nextTaskInBatch();
                 }
             }
@@ -212,7 +222,7 @@ public class SmsMiningService extends Service {
             }
 
             if (isSuccess) processReward(phone, taskId);
-            else nextTaskInBatch(); // Failed verification, move to next
+            else nextTaskInBatch(); // Failed verification (Quota?), move to next
             
         } catch (Exception e) {
             nextTaskInBatch();
@@ -241,14 +251,14 @@ public class SmsMiningService extends Service {
     }
 
     private void nextTaskInBatch() {
-        tasksProcessedInBatch++;
+        tasksProcessedInBatch++; // ✅ INCREMENT COUNT
         releaseCpu();
         // Immediately fetch next task (no long sleep inside batch)
         new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, 1000);
     }
 
     private void handleSmartSleep(String reason) {
-        sendBroadcastUpdate("Retry: " + reason, 0);
+        sendBroadcastUpdate("Retry: " + reason, (tasksProcessedInBatch * 100) / BATCH_LIMIT);
         // If we fail to get task, just retry, don't increment batch count yet
         currentRetryDelay = Math.min(currentRetryDelay * 2, MAX_RETRY_DELAY);
         new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, currentRetryDelay);
@@ -266,7 +276,7 @@ public class SmsMiningService extends Service {
         sendBroadcast(intent);
     }
     
-    // Standard Boilerplate
+    // Standard Utils
     private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10*60*1000L); }
     private void releaseCpu() { if (wakeLock != null && wakeLock.isHeld()) wakeLock.release(); }
     private void updateNotification(String status) { NotificationManager nm = getSystemService(NotificationManager.class); if (nm != null) nm.notify(1, getNotification("Mining Active", status)); }
