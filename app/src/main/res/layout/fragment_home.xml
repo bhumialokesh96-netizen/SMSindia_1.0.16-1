@@ -53,7 +53,7 @@
                 android:padding="5dp"/>
         </LinearLayout>
 
-              <!-- WALLET CARD (Orange Background + Green Border) -->
+        <!-- WALLET CARD (Corrected IDs) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardBalance"
             android:layout_width="match_parent"
@@ -79,8 +79,9 @@
                     android:textSize="14sp"
                     android:alpha="0.9"/>
 
+                <!-- Corrected ID: tv_balance_amount -->
                 <TextView
-                    android:id="@+id/tv_wallet_balance"
+                    android:id="@+id/tv_balance_amount"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="₹ 2.00"
@@ -89,9 +90,9 @@
                     android:textStyle="bold"
                     android:layout_marginTop="8dp"/>
 
-                <!-- History Button (Changed to darker Orange for contrast) -->
+                <!-- Corrected ID: btn_history -->
                 <Button
-                    android:id="@+id/btn_wallet_history"
+                    android:id="@+id/btn_history"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
                     android:layout_marginTop="20dp"
@@ -104,6 +105,7 @@
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
 
 
         <!-- Slidable Banners (ViewPager2) -->
