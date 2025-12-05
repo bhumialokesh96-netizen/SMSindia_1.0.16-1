@@ -13,11 +13,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridLayout;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.card.MaterialCardView;
@@ -52,12 +50,15 @@ public class ProfileFragment extends Fragment {
         tvMobile = v.findViewById(R.id.tv_profile_mobile);
         tvBalance = v.findViewById(R.id.tv_profile_balance);
         imgProfile = v.findViewById(R.id.img_profile);
+        
         Button btnWithdraw = v.findViewById(R.id.btn_withdraw);
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
         TextView btnAddBank = v.findViewById(R.id.btn_add_bank);
+        
+        // Assuming you might add a Share button in XML later
+        // Button btnShare = v.findViewById(R.id.btn_share_app); 
 
         layoutSavedBankView = v.findViewById(R.id.layout_saved_bank);
-        
         tvBankName = v.findViewById(R.id.tv_bank_name);
         tvBankAc = v.findViewById(R.id.tv_bank_ac);
 
@@ -70,12 +71,12 @@ public class ProfileFragment extends Fragment {
         fetchUserData();
 
         // --- CLICK LISTENERS ---
-        
-        // NOTE: Profile Image Click Listener Removed (Permanent Avatar)
 
+        // 1. Bank & Withdraw
         btnAddBank.setOnClickListener(view -> showAddBankDialog());
         btnWithdraw.setOnClickListener(view -> requestWithdrawal());
 
+        // 2. History
         btnHistory.setOnClickListener(view -> {
             try {
                 Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
@@ -84,8 +85,30 @@ public class ProfileFragment extends Fragment {
                 Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
             }
         });
+        
+        // 3. (Optional) If you add a "Refer Friend" button in XML, uncomment this:
+        // btnShare.setOnClickListener(view -> shareReferralLink());
+
+        // NOTE: imgProfile click listener is REMOVED. It is now permanent.
 
         return v;
+    }
+
+    // --- NEW: REFERRAL LINK SHARING (Connects to Vercel) ---
+    private void shareReferralLink() {
+        if(uid == null || uid.isEmpty()) return;
+
+        // Your Vercel Link with the user's ID
+        String shareUrl = "https://smsindia-web.vercel.app/?ref=" + uid;
+
+        String message = "🔥 Earn ₹500 Daily! Download SMS India App.\n" +
+                         "Use my Referral Link to get a Bonus:\n\n" + 
+                         shareUrl;
+
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_TEXT, message);
+        startActivity(Intent.createChooser(shareIntent, "Share via"));
     }
 
     private void fetchUserData() {
@@ -151,8 +174,7 @@ public class ProfileFragment extends Fragment {
                 .addOnSuccessListener(a -> Toast.makeText(getContext(), "Bank details saved!", Toast.LENGTH_SHORT).show());
     }
 
-    // --- WITHDRAWAL LOGIC START ---
-
+    // --- WITHDRAWAL LOGIC ---
     private void requestWithdrawal() {
         if (!hasBankDetails) {
             Toast.makeText(getContext(), "Please add bank details first", Toast.LENGTH_LONG).show();
@@ -176,9 +198,7 @@ public class ProfileFragment extends Fragment {
         Button btnConfirm = view.findViewById(R.id.btn_confirm_withdraw);
         selectedAmount = 0;
 
-        // Dynamically add amount boxes
         for (int amount : WITHDRAWAL_OPTIONS) {
-            // Ensure item_amount_box.xml exists
             View itemView = LayoutInflater.from(getContext()).inflate(R.layout.item_amount_box, gridLayout, false);
             TextView tvVal = itemView.findViewById(R.id.tv_amount_val);
             MaterialCardView card = itemView.findViewById(R.id.card_amount);
@@ -190,25 +210,21 @@ public class ProfileFragment extends Fragment {
                 btnConfirm.setEnabled(true);
                 btnConfirm.setText("Withdraw ₹" + amount);
                 
-                // --- UPDATE: Use Gold 3D Style instead of Flat Green ---
                 btnConfirm.setBackgroundResource(R.drawable.bg_gold_3d);
-                btnConfirm.setTextColor(Color.parseColor("#5D4037")); // Brown Text
+                btnConfirm.setTextColor(Color.parseColor("#5D4037")); 
 
-                // Reset all boxes visual state
                 for (int i = 0; i < gridLayout.getChildCount(); i++) {
                     View child = gridLayout.getChildAt(i);
                     MaterialCardView c = child.findViewById(R.id.card_amount);
                     TextView t = child.findViewById(R.id.tv_amount_val);
-
                     c.setCardBackgroundColor(Color.parseColor("#FFFFFF"));
                     c.setStrokeColor(Color.parseColor("#E0E0E0"));
                     t.setTextColor(Color.BLACK);
                 }
 
-                // Highlight selected box (GOLD)
-                card.setCardBackgroundColor(Color.parseColor("#FFF8E1")); // Light Gold
-                card.setStrokeColor(Color.parseColor("#FFC107")); // Gold Border
-                tvVal.setTextColor(Color.parseColor("#FF8F00")); // Dark Orange Text
+                card.setCardBackgroundColor(Color.parseColor("#FFF8E1"));
+                card.setStrokeColor(Color.parseColor("#FFC107"));
+                tvVal.setTextColor(Color.parseColor("#FF8F00"));
             });
 
             gridLayout.addView(itemView);
@@ -231,17 +247,14 @@ public class ProfileFragment extends Fragment {
         DocumentReference withdrawRef = db.collection("users").document(uid).collection("withdrawals").document();
         DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
 
-        // 1. Deduct Balance
         batch.update(userRef, "balance", FieldValue.increment(-amount));
 
-        // 2. Create Withdrawal Request
         Map<String, Object> req = new HashMap<>();
         req.put("amount", amount);
         req.put("status", "Reviewing");
         req.put("timestamp", FieldValue.serverTimestamp());
         batch.set(withdrawRef, req);
 
-        // 3. Add to History
         Map<String, Object> tx = new HashMap<>();
         tx.put("title", "Withdrawal Request");
         tx.put("amount", amount);
