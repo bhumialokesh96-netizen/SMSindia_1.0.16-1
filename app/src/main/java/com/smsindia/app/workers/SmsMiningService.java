@@ -2,6 +2,8 @@ package com.smsindia.app.workers;
 
 import android.app.Activity;
 import android.app.Notification;
+import com.smsindia.app.services.SupabaseApi;
+import com.smsindia.app.services.TaskModel;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
