@@ -1,4 +1,4 @@
-package com.smsindia.app.services; // Make sure this matches your folder!
+package com.smsindia.app.service; // Make sure this matches your folder!
 
 import com.google.gson.annotations.SerializedName;
 
