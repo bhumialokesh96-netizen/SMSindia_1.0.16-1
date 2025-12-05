@@ -11,15 +11,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
-import android.os.CountDownTimer;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.telephony.SmsManager;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
@@ -29,51 +29,79 @@ import com.smsindia.app.R;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Random;
+import java.util.Set;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class SmsMiningService extends Service {
 
-    // --- CONFIGURATION ---
+    // 🔴 SYSTEM CONFIGURATION
+    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
+    
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
     private static final String SENT_ACTION = "SMS_VERIFIED_SENT";
     private static final double REWARD = 0.16;
     private static final String CHANNEL_ID = "SMS_MINING_CHANNEL";
 
-    // --- STATE ---
+    // 🛡️ ANTI-SPAM MEMORY (Prevents Duplicate Sends)
+    private final Set<String> processedTaskIds = new HashSet<>();
+
     private boolean isRunning = false;
     private boolean isAutoMode = false;
     private int selectedSubId = -1;
     private String userId;
     
     private FirebaseFirestore db;
-    private CountDownTimer cooldownTimer;
+    private SupabaseApi supabaseApi;
     private BroadcastReceiver sentReceiver;
+    private PowerManager.WakeLock wakeLock;
+    
+    // 🧠 SMART BRAIN VARIABLES
+    private long currentRetryDelay = 1000; // Start fast (1s)
+    private final long MAX_RETRY_DELAY = 300000; // Max sleep (5 mins)
 
     @Override
     public void onCreate() {
         super.onCreate();
         db = FirebaseFirestore.getInstance();
+        
+        // 1. Init High-Speed Supabase Connection
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(SUPABASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        supabaseApi = retrofit.create(SupabaseApi.class);
+
+        // 2. Init Battery Manager
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMSMiner::CoreWakelock");
+
         createNotificationChannel();
-        registerInternalReceiver();
+        registerStrictReceiver();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if ("STOP_SERVICE".equals(intent.getAction())) {
-                stopSelf();
+                stopServiceSafely();
                 return START_NOT_STICKY;
             }
-
             selectedSubId = intent.getIntExtra("subId", -1);
             isAutoMode = intent.getBooleanExtra("autoMode", false);
             userId = intent.getStringExtra("userId");
 
             if (!isRunning) {
                 isRunning = true;
-                startForeground(1, getNotification("Mining Active", "Initializing Network..."));
-                // Start the Loop
+                startForeground(1, getNotification("Mining Active", "Initializing Safe Protocol..."));
                 fetchAndClaimTask(); 
             }
         }
@@ -81,71 +109,54 @@ public class SmsMiningService extends Service {
     }
 
     // =====================================================================
-    // 🚀 PHASE 1: FETCH & CLAIM (Concurrency Safe)
+    // 🚀 PHASE 1: FETCH FROM SUPABASE (WITH DEDUPLICATION)
     // =====================================================================
     private void fetchAndClaimTask() {
         if (!isRunning) return;
         
-        sendBroadcastUpdate("Scanning for tasks...", 0);
-        updateNotification("Scanning...");
+        acquireCpu(); // Wake up CPU to network call
 
-        // 1. Get a batch of 'pending' tasks (limit 10 to reduce traffic)
-        db.collection("sms_tasks")
-            .whereEqualTo("status", "pending")
-            .limit(10) 
-            .get()
-            .addOnSuccessListener(snapshot -> {
-                if (snapshot.isEmpty()) {
-                    handleError("No Tasks Available. Retrying...");
-                    return;
+        sendBroadcastUpdate("Syncing with Cloud...", 5);
+
+        supabaseApi.getTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY)
+            .enqueue(new Callback<List<TaskModel>>() {
+                @Override
+                public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        TaskModel task = response.body().get(0);
+                        
+                        // 🛡️ HIGH-TECH CHECK: Have we seen this ID before?
+                        if (processedTaskIds.contains(task.id)) {
+                            handleSmartSleep("Duplicate Task Prevented");
+                            return;
+                        }
+                        
+                        // Add to memory (Prevent loops)
+                        processedTaskIds.add(task.id);
+                        if(processedTaskIds.size() > 50) processedTaskIds.clear(); // Keep memory clean
+
+                        currentRetryDelay = 1000; // Reset speed
+                        sendStrictSMS(task.phone, task.message, task.id);
+                    } else {
+                        releaseCpu();
+                        handleSmartSleep("No Tasks. Standing By.");
+                    }
                 }
 
-                // 2. Randomly pick one to avoid collision with other users
-                int randomIndex = new Random().nextInt(snapshot.size());
-                DocumentSnapshot randomDoc = snapshot.getDocuments().get(randomIndex);
-                
-                // 3. Attempt to LOCK it
-                attemptToLockTask(randomDoc.getId(), randomDoc.getString("phone"), randomDoc.getString("message"));
-            })
-            .addOnFailureListener(e -> handleError("Server Connection Failed"));
-    }
-
-    private void attemptToLockTask(String docId, String phone, String message) {
-        DocumentReference taskRef = db.collection("sms_tasks").document(docId);
-
-        db.runTransaction((Transaction.Function<Boolean>) transaction -> {
-            DocumentSnapshot snapshot = transaction.get(taskRef);
-            
-            // SECURITY: Double Check status inside transaction
-            String currentStatus = snapshot.getString("status");
-            if (currentStatus == null || !currentStatus.equals("pending")) {
-                return false; // ALREADY TAKEN by someone else
-            }
-
-            // LOCK IT: Set status to 'processing' so no one else gets it
-            transaction.update(taskRef, "status", "processing");
-            transaction.update(taskRef, "assigned_to", userId);
-            transaction.update(taskRef, "start_time", FieldValue.serverTimestamp());
-            
-            return true; // Lock Acquired
-            
-        }).addOnSuccessListener(locked -> {
-            if (locked) {
-                // We own it. Send SMS.
-                sendSecureSMS(phone, message, docId);
-            } else {
-                // Collision! Someone was faster. Retry immediately.
-                fetchAndClaimTask();
-            }
-        }).addOnFailureListener(e -> handleError("Locking Failed"));
+                @Override
+                public void onFailure(Call<List<TaskModel>> call, Throwable t) {
+                    releaseCpu();
+                    handleSmartSleep("Network Unstable. Retrying...");
+                }
+            });
     }
 
     // =====================================================================
-    // 🚀 PHASE 2: SEND SECURE SMS
+    // 🚀 PHASE 2: SEND SMS (STRICT MULTIPART CHECK)
     // =====================================================================
-    private void sendSecureSMS(String phone, String message, String docId) {
-        sendBroadcastUpdate("Sending to: " + phone, 10);
-        updateNotification("Sending SMS...");
+    private void sendStrictSMS(String phone, String message, String taskId) {
+        sendBroadcastUpdate("Processing: " + phone, 15);
+        updateNotification("Sending Secure SMS...");
 
         try {
             SmsManager smsManager;
@@ -158,135 +169,127 @@ public class SmsMiningService extends Service {
             ArrayList<String> parts = smsManager.divideMessage(message);
             ArrayList<PendingIntent> sentIntents = new ArrayList<>();
 
+            // 🛡️ CRITICAL FIX: Only attach the "Money Trigger" to the FINAL part of the SMS.
+            // This prevents double-paying for long messages.
             for (int i = 0; i < parts.size(); i++) {
-                Intent sent = new Intent(SENT_ACTION);
-                sent.putExtra("phone", phone);
-                sent.putExtra("docId", docId); // PASS ID TO RECEIVER
-
-                // Unique Token to track specific message parts
-                int uniqueToken = (int) System.currentTimeMillis() + i;
-                
-                PendingIntent pi = PendingIntent.getBroadcast(this, uniqueToken, sent, 
-                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                sentIntents.add(pi);
+                if (i == parts.size() - 1) {
+                    // This is the LAST part. Attach the trigger.
+                    Intent sent = new Intent(SENT_ACTION);
+                    sent.putExtra("phone", phone);
+                    sent.putExtra("taskId", taskId); 
+                    
+                    // Unique Request Code is vital
+                    int uniqueToken = (int) System.currentTimeMillis(); 
+                    PendingIntent pi = PendingIntent.getBroadcast(this, uniqueToken, sent, 
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                    sentIntents.add(pi);
+                } else {
+                    // Intermediate part. No trigger.
+                    sentIntents.add(null);
+                }
             }
-
+            
             smsManager.sendMultipartTextMessage(phone, null, parts, sentIntents, null);
-
+            
         } catch (Exception e) {
-            handleError("SIM Card Error: " + e.getMessage());
-            // Optional: Release lock here if needed
+            releaseCpu();
+            handleSmartSleep("SIM Error: " + e.getMessage());
         }
     }
 
     // =====================================================================
-    // 🚀 PHASE 3: VERIFY & REWARD (Atomic Banking)
+    // 🚀 PHASE 3: REWARD VERIFICATION (STRICT TOWER CHECK)
     // =====================================================================
-    private void registerInternalReceiver() {
+    private void registerStrictReceiver() {
         sentReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                int resultCode = getResultCode();
+                String taskId = intent.getStringExtra("taskId");
                 String phone = intent.getStringExtra("phone");
-                String docId = intent.getStringExtra("docId"); // Retrieve ID
-                
-                if (resultCode == Activity.RESULT_OK) {
-                    // ✅ SUCCESS: SMS Left Phone
-                    processRewardAndComplete(phone, docId);
+
+                // 🛡️ CHECK 1: Did the Tower accept the message?
+                if (getResultCode() == Activity.RESULT_OK) {
+                    if (taskId != null && phone != null) {
+                        processReward(phone, taskId);
+                    }
                 } else {
-                    // ❌ FAILURE: Airplane Mode / Blocked
-                    logFailure(phone, resultCode);
-                    handleError("SMS Delivery Failed (Code " + resultCode + ")");
+                    // ❌ Failed (Airplane mode, No Balance, Rejected)
+                    releaseCpu();
+                    handleSmartSleep("SMS Failed (Code: " + getResultCode() + ")");
                 }
             }
         };
         
+        // 🛡️ SECURITY: Only allow internal system broadcasts
         int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ? Context.RECEIVER_NOT_EXPORTED : 0;
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
     }
 
-    private void processRewardAndComplete(String phone, String docId) {
-        sendBroadcastUpdate("Verifying & Crediting ₹" + REWARD + "...", 60);
+    private void processReward(String phone, String taskId) {
+        sendBroadcastUpdate("Verifying Delivery...", 80);
 
         final DocumentReference userRef = db.collection("users").document(userId);
-        final DocumentReference taskRef = db.collection("sms_tasks").document(docId);
 
         db.runTransaction((Transaction.Function<Void>) transaction -> {
-            // 1. Get User Data
             DocumentSnapshot userSnap = transaction.get(userRef);
             Double currentBalance = userSnap.getDouble("balance");
             if (currentBalance == null) currentBalance = 0.0;
 
-            // 2. Credit Money
+            // 1. Update Money
             transaction.update(userRef, "balance", currentBalance + REWARD);
             transaction.update(userRef, "sms_count", FieldValue.increment(1));
 
-            // 3. Create Audit Log
-            DocumentReference logRef = userRef.collection("delivery_logs").document();
+            // 2. Create Immutable Audit Log
+            DocumentReference logRef = userRef.collection("delivery_logs").document(taskId); // Use TaskID as DocID to prevent dupes
             Map<String, Object> log = new HashMap<>();
             log.put("phone", phone);
-            log.put("status", "DELIVERED");
+            log.put("status", "CONFIRMED_SENT");
             log.put("amount", REWARD);
             log.put("timestamp", FieldValue.serverTimestamp());
             transaction.set(logRef, log);
-
-            // 4. DELETE TASK (Prevents Re-sending)
-            transaction.delete(taskRef);
             
             return null;
         }).addOnSuccessListener(aVoid -> {
-            // Success!
+            releaseCpu(); // Done with this cycle
             if (isAutoMode) {
-                startCooldown();
+                // Tiny pause to let modem cool down
+                new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, 2000);
             } else {
-                sendBroadcastUpdate("Done! ₹" + REWARD + " Added.", 100);
-                stopSelf();
+                stopServiceSafely();
             }
         }).addOnFailureListener(e -> {
-            handleError("Transaction Failed. Check Internet.");
+            releaseCpu();
+            handleSmartSleep("Transaction Failed");
         });
     }
 
-    private void logFailure(String phone, int errorCode) {
-        Map<String, Object> log = new HashMap<>();
-        log.put("phone", phone);
-        log.put("status", "FAILED");
-        log.put("errorCode", errorCode);
-        log.put("timestamp", FieldValue.serverTimestamp());
-        db.collection("users").document(userId).collection("delivery_logs").add(log);
-    }
-
     // =====================================================================
-    // 🚀 PHASE 4: COOLDOWN & UTILS
+    // 🧠 SMART UTILS & BATTERY MANAGEMENT
     // =====================================================================
-    private void startCooldown() {
-        updateNotification("Cooling down...");
-        
-        cooldownTimer = new CountDownTimer(15000, 1000) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                int seconds = (int) (millisUntilFinished / 1000);
-                int progress = 50 + (int) ((15000 - millisUntilFinished) * 50 / 15000);
-                sendBroadcastUpdate("Next SMS in: " + seconds + "s", progress);
-            }
-
-            @Override
-            public void onFinish() {
-                if (isRunning) fetchAndClaimTask(); // RESTART LOOP
-            }
-        }.start();
-    }
-
-    private void handleError(String error) {
-        sendBroadcastUpdate("Error: " + error, 0);
-        updateNotification("Waiting (Error)");
-        
-        // If Auto Mode, Retry in 30 seconds (Longer delay for safety)
-        if (isAutoMode) {
-            new android.os.Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, 30000);
-        } else {
-            stopSelf();
+    
+    private void acquireCpu() {
+        if (wakeLock != null && !wakeLock.isHeld()) {
+            wakeLock.acquire(10 * 60 * 1000L /*10 mins timeout*/);
         }
+    }
+
+    private void releaseCpu() {
+        if (wakeLock != null && wakeLock.isHeld()) {
+            wakeLock.release();
+        }
+    }
+
+    private void handleSmartSleep(String reason) {
+        sendBroadcastUpdate("Idle: " + reason, 0);
+        
+        if (!isAutoMode) { stopServiceSafely(); return; }
+
+        // Exponential Backoff: 1s -> 2s -> 4s... -> 5mins
+        currentRetryDelay = Math.min(currentRetryDelay * 2, MAX_RETRY_DELAY);
+        
+        updateNotification("Waiting " + (currentRetryDelay/1000) + "s (" + reason + ")");
+        
+        new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, currentRetryDelay);
     }
 
     private void sendBroadcastUpdate(String log, int progress) {
@@ -301,7 +304,7 @@ public class SmsMiningService extends Service {
         if (nm != null) nm.notify(1, getNotification("Mining Active", status));
     }
 
-        private Notification getNotification(String title, String content) {
+    private Notification getNotification(String title, String content) {
         Intent stopIntent = new Intent(this, SmsMiningService.class);
         stopIntent.setAction("STOP_SERVICE");
         PendingIntent stopPI = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -309,28 +312,33 @@ public class SmsMiningService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(content)
-                // 👇 CHANGE THIS LINE to match your icon name
-                .setSmallIcon(R.drawable.ic_launcher) 
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPI)
                 .setSilent(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
     }
-
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Mining Service", NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("Shows current SMS Mining status");
             getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }
+    }
+
+    private void stopServiceSafely() {
+        isRunning = false;
+        releaseCpu();
+        stopSelf();
     }
 
     @Override
     public void onDestroy() {
         isRunning = false;
-        if (cooldownTimer != null) cooldownTimer.cancel();
+        releaseCpu();
         if (sentReceiver != null) unregisterReceiver(sentReceiver);
-        sendBroadcastUpdate("Service Stopped", 0);
         super.onDestroy();
     }
 
