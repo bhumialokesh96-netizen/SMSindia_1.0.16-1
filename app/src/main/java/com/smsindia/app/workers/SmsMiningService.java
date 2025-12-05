@@ -1,4 +1,4 @@
-package com.smsindia.app.services;
+package com.smsindia.app.workers;
 
 import android.app.Activity;
 import android.app.Notification;
@@ -312,7 +312,7 @@ public class SmsMiningService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(content)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSmallIcon(R.drawable.ic_launcher)
                 .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPI)
                 .setSilent(true)
