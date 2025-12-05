@@ -4,7 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList; // Added Import
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -44,7 +44,8 @@ public class ProfileFragment extends Fragment {
 
     private TextView tvMobile, tvBalance, tvBankName, tvBankAc;
     private ImageView imgProfile;
-    private LinearLayout layoutSavedBank;
+    private LinearLayout layoutSavedBank; // Changed ID in XML to match this logic if needed, or use CardView
+    private View layoutSavedBankView; // To handle View vs CardView if specific methods needed
     private FirebaseFirestore db;
     private String uid;
     private double currentBalance = 0.0;
@@ -84,7 +85,9 @@ public class ProfileFragment extends Fragment {
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
         TextView btnAddBank = v.findViewById(R.id.btn_add_bank);
 
-        layoutSavedBank = v.findViewById(R.id.layout_saved_bank);
+        // The layout XML uses a CardView now, which is a View
+        layoutSavedBankView = v.findViewById(R.id.layout_saved_bank);
+        
         tvBankName = v.findViewById(R.id.tv_bank_name);
         tvBankAc = v.findViewById(R.id.tv_bank_ac);
 
@@ -102,8 +105,13 @@ public class ProfileFragment extends Fragment {
         btnWithdraw.setOnClickListener(view -> requestWithdrawal());
 
         btnHistory.setOnClickListener(view -> {
-            Intent intent = new Intent(getActivity(), WithdrawalHistoryActivity.class);
-            startActivity(intent);
+             // Ensure this Activity exists
+            try {
+                Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
+                startActivity(intent);
+            } catch (ClassNotFoundException e) {
+                Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
+            }
         });
 
         return v;
@@ -125,7 +133,7 @@ public class ProfileFragment extends Fragment {
                 Map<String, Object> bankMap = (Map<String, Object>) snapshot.get("bank_account");
                 if (bankMap != null) {
                     hasBankDetails = true;
-                    layoutSavedBank.setVisibility(View.VISIBLE);
+                    layoutSavedBankView.setVisibility(View.VISIBLE);
                     tvBankName.setText((String) bankMap.get("bank_name"));
                     tvBankAc.setText("AC: " + bankMap.get("account_no"));
                 }
@@ -144,6 +152,7 @@ public class ProfileFragment extends Fragment {
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_add_bank, null);
         builder.setView(view);
         AlertDialog dialog = builder.create();
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
         EditText etName = view.findViewById(R.id.et_bank_name);
         EditText etAc = view.findViewById(R.id.et_bank_ac);
@@ -203,6 +212,7 @@ public class ProfileFragment extends Fragment {
 
         // Dynamically add amount boxes
         for (int amount : WITHDRAWAL_OPTIONS) {
+            // Ensure item_amount_box.xml exists
             View itemView = LayoutInflater.from(getContext()).inflate(R.layout.item_amount_box, gridLayout, false);
             TextView tvVal = itemView.findViewById(R.id.tv_amount_val);
             MaterialCardView card = itemView.findViewById(R.id.card_amount);
@@ -214,8 +224,9 @@ public class ProfileFragment extends Fragment {
                 btnConfirm.setEnabled(true);
                 btnConfirm.setText("Withdraw ₹" + amount);
                 
-                // ✅ FIXED LINE BELOW: Use Color.parseColor directly
-                btnConfirm.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
+                // --- UPDATE: Use Gold 3D Style instead of Flat Green ---
+                btnConfirm.setBackgroundResource(R.drawable.bg_gold_3d);
+                btnConfirm.setTextColor(Color.parseColor("#5D4037")); // Brown Text
 
                 // Reset all boxes visual state
                 for (int i = 0; i < gridLayout.getChildCount(); i++) {
@@ -223,15 +234,15 @@ public class ProfileFragment extends Fragment {
                     MaterialCardView c = child.findViewById(R.id.card_amount);
                     TextView t = child.findViewById(R.id.tv_amount_val);
 
-                    c.setCardBackgroundColor(Color.parseColor("#F5F7FA"));
+                    c.setCardBackgroundColor(Color.parseColor("#FFFFFF"));
                     c.setStrokeColor(Color.parseColor("#E0E0E0"));
                     t.setTextColor(Color.BLACK);
                 }
 
-                // Highlight selected box
-                card.setCardBackgroundColor(Color.parseColor("#E8F5E9")); // Light Green
-                card.setStrokeColor(Color.parseColor("#4CAF50")); // Green
-                tvVal.setTextColor(Color.parseColor("#4CAF50"));
+                // Highlight selected box (GOLD)
+                card.setCardBackgroundColor(Color.parseColor("#FFF8E1")); // Light Gold
+                card.setStrokeColor(Color.parseColor("#FFC107")); // Gold Border
+                tvVal.setTextColor(Color.parseColor("#FF8F00")); // Dark Orange Text
             });
 
             gridLayout.addView(itemView);
@@ -274,7 +285,7 @@ public class ProfileFragment extends Fragment {
 
         batch.commit().addOnSuccessListener(a -> {
             parentDialog.dismiss();
-            showSuccessPopup(); // Show success message
+            showSuccessPopup(); 
         }).addOnFailureListener(e -> {
             Toast.makeText(getContext(), "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });

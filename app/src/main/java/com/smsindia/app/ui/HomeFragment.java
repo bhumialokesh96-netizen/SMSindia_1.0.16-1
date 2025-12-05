@@ -38,7 +38,7 @@ public class HomeFragment extends Fragment {
     private FirebaseFirestore db;
     private String uid;
     
-    // Rewards for 10 Days: Index 0 = Day 1, Index 1 = Day 2, etc.
+    // Rewards for 10 Days
     private final int[] DAILY_REWARDS = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
 
     @Override
@@ -65,10 +65,14 @@ public class HomeFragment extends Fragment {
         // Click Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         
-        // Navigate to History Activity
         btnHistory.setOnClickListener(view -> {
-            Intent intent = new Intent(getActivity(), HistoryActivity.class);
-            startActivity(intent);
+            // Check if activity exists before launching
+            try {
+                Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.HistoryActivity"));
+                startActivity(intent);
+            } catch (ClassNotFoundException e) {
+                 Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
+            }
         });
         
         return v;
@@ -76,8 +80,6 @@ public class HomeFragment extends Fragment {
 
     private void showDailyCheckInDialog() {
         if (uid == null || uid.isEmpty()) return;
-
-        // Show Loading Dialog or ProgressBar here if needed
         
         db.collection("users").document(uid).get()
             .addOnSuccessListener(documentSnapshot -> {
@@ -98,9 +100,6 @@ public class HomeFragment extends Fragment {
                     streakToDisplay = currentStreak;
                     canClaim = false;
                 } else {
-                    // Check if last checkin was yesterday
-                    // (Simplified logic: If not today, assume next day in streak for UI, reset if gap too large handled in claim)
-                    // For strict date checking, you need ParseException handling, skipping for brevity
                     streakToDisplay = currentStreak + 1; 
                     if(streakToDisplay > 10) streakToDisplay = 1; // Reset after 10 days
                 }
@@ -109,7 +108,7 @@ public class HomeFragment extends Fragment {
             });
     }
 
-            private void launchDialogUI(int currentDay, boolean canClaim, String todayDate) {
+    private void launchDialogUI(int currentDay, boolean canClaim, String todayDate) {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
         builder.setView(view);
@@ -135,7 +134,6 @@ public class HomeFragment extends Fragment {
             TextView lblDay = dayView.findViewById(R.id.lbl_day);
             TextView lblAmount = dayView.findViewById(R.id.lbl_amount);
             
-            // FIX IS HERE: Added (View) cast
             View bgCircle = (View) dayView.findViewById(R.id.lbl_amount).getParent(); 
             
             lblDay.setText("Day " + dayNum);
@@ -146,12 +144,10 @@ public class HomeFragment extends Fragment {
                 // PAST DAYS
                 dayView.setAlpha(0.5f); 
             } else if (dayNum == currentDay) {
-                // TODAY (Active)
+                // TODAY (Active) - Changed from Purple to Green
                 bgCircle.requestLayout(); 
-                lblDay.setTextColor(Color.parseColor("#6200EE"));
+                lblDay.setTextColor(Color.parseColor("#1B5E20")); // Dark Green
                 lblDay.setTypeface(null, android.graphics.Typeface.BOLD);
-            } else {
-                // FUTURE DAYS
             }
         }
         // ---------------------------
@@ -159,10 +155,16 @@ public class HomeFragment extends Fragment {
         if (!canClaim) {
             btnClaim.setText("COME BACK TOMORROW");
             btnClaim.setEnabled(false);
+            // Gray is okay for disabled state
             btnClaim.setBackgroundTintList(getContext().getColorStateList(android.R.color.darker_gray));
         } else {
             int rewardAmount = DAILY_REWARDS[currentDay - 1];
             btnClaim.setText("CLAIM ₹" + rewardAmount);
+            
+            // --- IMPORTANT: Set 3D Gold Background ---
+            btnClaim.setBackgroundResource(R.drawable.bg_gold_3d);
+            btnClaim.setTextColor(Color.parseColor("#5D4037")); // Brown text
+            
             btnClaim.setOnClickListener(v -> {
                 claimReward(currentDay, rewardAmount, todayDate, dialog);
             });
@@ -188,7 +190,7 @@ public class HomeFragment extends Fragment {
         Map<String, Object> txData = new HashMap<>();
         txData.put("title", "Daily Check-in (Day " + day + ")");
         txData.put("amount", amount);
-        txData.put("type", "CREDIT"); // CREDIT or DEBIT
+        txData.put("type", "CREDIT");
         txData.put("timestamp", FieldValue.serverTimestamp());
         batch.set(historyRef, txData);
 
@@ -201,19 +203,21 @@ public class HomeFragment extends Fragment {
     }
 
        private void setupBannerSlider() {
-        // Create a list of Image IDs (Integers)
         List<Integer> bannerList = new ArrayList<>();
-        
-        // Make sure you have put these images in your res/drawable folder!
+        // Make sure these images exist in res/drawable!
         bannerList.add(R.drawable.banner_one);   
         bannerList.add(R.drawable.banner_two);
         bannerList.add(R.drawable.banner_three);
 
-        // Pass the list to the Adapter
-        BannerAdapter adapter = new BannerAdapter(bannerList);
-        bannerViewPager.setAdapter(adapter);
+        // If you don't have these, you can remove them or the app will crash on start
+        // Ensure BannerAdapter exists
+        try {
+            BannerAdapter adapter = new BannerAdapter(bannerList);
+            bannerViewPager.setAdapter(adapter);
+        } catch (Exception e) {
+            // Handle adapter error
+        }
     }
-
 
     private void fetchUserBalance() {
         if (uid == null || uid.isEmpty()) return;

@@ -14,14 +14,19 @@ public class LuckyWheelView extends View {
     private int mHeight;
     private Paint mPaint;
     private Paint mTextPaint;
+    private Paint mBorderPaint; // Paint for the Gold Border
+    private Paint mCenterPaint; // Paint for the Center Circle
+    
     private String[] mTitles = {"₹0.6", "₹0.8", "₹10", "₹0", "₹100", "₹0.6"};
+    
+    // UPDATED COLORS: Alternating Dark Green and Gold
     private int[] mColors = {
-            Color.parseColor("#FF5252"), // Red
-            Color.parseColor("#FF9800"), // Orange
-            Color.parseColor("#4CAF50"), // Green
-            Color.parseColor("#607D8B"), // Grey
-            Color.parseColor("#E91E63"), // Pink
-            Color.parseColor("#2196F3")  // Blue
+            Color.parseColor("#1B5E20"), // Dark Green
+            Color.parseColor("#FFC107"), // Gold
+            Color.parseColor("#1B5E20"), // Dark Green
+            Color.parseColor("#FFC107"), // Gold
+            Color.parseColor("#1B5E20"), // Dark Green
+            Color.parseColor("#FFC107")  // Gold
     };
     
     // We start angle at 270 (top)
@@ -37,14 +42,30 @@ public class LuckyWheelView extends View {
     }
 
     private void init() {
+        // Slice Paint
         mPaint = new Paint();
         mPaint.setAntiAlias(true);
+
+        // Text Paint
         mTextPaint = new Paint();
-        mTextPaint.setColor(Color.WHITE);
-        mTextPaint.setTextSize(60f); // Adjust size as needed
+        mTextPaint.setTextSize(50f); // Adjusted size slightly
         mTextPaint.setAntiAlias(true);
         mTextPaint.setTextAlign(Paint.Align.CENTER);
         mTextPaint.setFakeBoldText(true);
+
+        // Border Paint (THICK GOLD BORDER)
+        mBorderPaint = new Paint();
+        mBorderPaint.setColor(Color.parseColor("#FFC107")); // Gold
+        mBorderPaint.setStyle(Paint.Style.STROKE);
+        mBorderPaint.setStrokeWidth(20f); // 20px Thickness
+        mBorderPaint.setAntiAlias(true);
+        
+        // Center Circle Paint
+        mCenterPaint = new Paint();
+        mCenterPaint.setColor(Color.WHITE);
+        mCenterPaint.setStyle(Paint.Style.FILL);
+        mCenterPaint.setAntiAlias(true);
+        mCenterPaint.setShadowLayer(4f, 0f, 2f, Color.GRAY);
     }
 
     @Override
@@ -53,20 +74,38 @@ public class LuckyWheelView extends View {
         if (mWidth == 0) return;
 
         int radius = Math.min(mWidth, mHeight) / 2;
+        // Reduce radius slightly to fit the thick border inside the view
+        int contentRadius = radius - 15; 
+        
         int centerX = mWidth / 2;
         int centerY = mHeight / 2;
         
-        RectF range = new RectF(centerX - radius, centerY - radius, centerX + radius, centerY + radius);
+        RectF range = new RectF(centerX - contentRadius, centerY - contentRadius, centerX + contentRadius, centerY + contentRadius);
 
         float sweepAngle = 360f / mTitles.length;
 
         for (int i = 0; i < mTitles.length; i++) {
+            // 1. Draw Slice Background
             mPaint.setColor(mColors[i % mColors.length]);
             canvas.drawArc(range, mStartAngle + (i * sweepAngle), sweepAngle, true, mPaint);
             
-            // Draw Text
-            drawText(canvas, mStartAngle + (i * sweepAngle), sweepAngle, mTitles[i], radius, centerX, centerY);
+            // 2. Determine Text Color for readability
+            // If background is Green -> Text White. If Gold -> Text Dark Green.
+            if (mColors[i % mColors.length] == Color.parseColor("#1B5E20")) {
+                mTextPaint.setColor(Color.WHITE);
+            } else {
+                mTextPaint.setColor(Color.parseColor("#1B5E20"));
+            }
+
+            // 3. Draw Text
+            drawText(canvas, mStartAngle + (i * sweepAngle), sweepAngle, mTitles[i], contentRadius, centerX, centerY);
         }
+        
+        // 4. Draw The Thick Gold Border
+        canvas.drawCircle(centerX, centerY, contentRadius, mBorderPaint);
+        
+        // 5. Draw Center Cap (Small White Circle in middle)
+        canvas.drawCircle(centerX, centerY, 20f, mCenterPaint);
     }
 
     private void drawText(Canvas canvas, float startAngle, float sweepAngle, String text, int radius, int centerX, int centerY) {

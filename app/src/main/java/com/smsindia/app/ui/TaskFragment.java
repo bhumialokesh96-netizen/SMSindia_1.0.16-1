@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -151,36 +150,40 @@ public class TaskFragment extends Fragment {
     }
 
     private void selectSim(int simIndex) {
-        // UI Update Logic
-        int colorSelected = Color.parseColor("#6200EE");
-        int colorUnselected = Color.parseColor("#E0E0E0");
-        int bgSelected = Color.parseColor("#E8EAF6"); // Light Indigo
+        // --- COLORS UPDATED FOR GOLD/GREEN THEME ---
+        int colorSelected = Color.parseColor("#FFC107"); // GOLD Border
+        int colorUnselected = Color.parseColor("#BDBDBD"); // Grey Border
+        
+        int bgSelected = Color.parseColor("#F1F8E9"); // Light Green Background
         int bgUnselected = Color.WHITE;
+        
+        int textSelected = Color.parseColor("#1B5E20"); // Dark Green Text
+        int textUnselected = Color.GRAY;
 
         if (simIndex == 1) {
             selectedSubId = subId1;
             
             cardSim1.setStrokeColor(colorSelected);
-            cardSim1.setStrokeWidth(5); // Thick border
+            cardSim1.setStrokeWidth(6); // Thick Border
             cardSim1.setCardBackgroundColor(bgSelected);
-            tvSim1Name.setTextColor(colorSelected);
+            tvSim1Name.setTextColor(textSelected);
 
             cardSim2.setStrokeColor(colorUnselected);
             cardSim2.setStrokeWidth(2);
             cardSim2.setCardBackgroundColor(bgUnselected);
-            tvSim2Name.setTextColor(Color.GRAY);
+            tvSim2Name.setTextColor(textUnselected);
         } else if (simIndex == 2 && subId2 != -1) {
             selectedSubId = subId2;
 
             cardSim2.setStrokeColor(colorSelected);
-            cardSim2.setStrokeWidth(5);
+            cardSim2.setStrokeWidth(6); // Thick Border
             cardSim2.setCardBackgroundColor(bgSelected);
-            tvSim2Name.setTextColor(colorSelected);
+            tvSim2Name.setTextColor(textSelected);
 
             cardSim1.setStrokeColor(colorUnselected);
             cardSim1.setStrokeWidth(2);
             cardSim1.setCardBackgroundColor(bgUnselected);
-            tvSim1Name.setTextColor(Color.GRAY);
+            tvSim1Name.setTextColor(textUnselected);
         }
     }
 
@@ -193,8 +196,10 @@ public class TaskFragment extends Fragment {
         }
         isRunning = true;
         btnAction.setText("STOP TASK");
-        // ✅ FIXED COLOR HERE
-        btnAction.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#D32F2F"))); // Red
+        
+        // --- BUTTON UPDATE: KEEP GOLD BG, CHANGE TEXT TO RED ---
+        btnAction.setTextColor(Color.RED); 
+        // Important: Removed 'setBackgroundTintList' to preserve the 3D Gold image
         
         log("Process Started...");
         fetchAndSend();
@@ -205,12 +210,14 @@ public class TaskFragment extends Fragment {
         if (waitTimer != null) waitTimer.cancel();
         
         tvTimer.setText("00");
-        progressTimer.setProgress(100);
+        progressTimer.setProgress(0);
         tvStatus.setText("Idle: " + reason);
         
         btnAction.setText(isAutoMode ? "START AUTO LOOP" : "SEND SINGLE TASK");
-        // ✅ FIXED COLOR HERE
-        btnAction.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#6200EE"))); // Purple
+        
+        // --- BUTTON UPDATE: RESTORE TEXT TO BROWN ---
+        btnAction.setTextColor(Color.parseColor("#5D4037")); 
+        
         log("Process Stopped: " + reason);
     }
 

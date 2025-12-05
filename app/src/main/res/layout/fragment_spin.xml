@@ -4,20 +4,45 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#263238"
-    android:gravity="center_horizontal"
-    android:padding="20dp">
+    android:background="#F5F5F5">
 
-    <!-- Header: Token Count -->
+    <!-- HEADER: Dark Green -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1B5E20"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:paddingBottom="40dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Lucky Spin"
+            android:textColor="#FFFFFF"
+            android:textSize="24sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Spin the wheel to win real cash!"
+            android:textColor="#C8E6C9"
+            android:layout_marginTop="4dp"
+            android:textSize="14sp"/>
+    </LinearLayout>
+
+    <!-- TOKEN COUNTER CARD (Overlapping) -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardCornerRadius="25dp"
-        app:cardBackgroundColor="#37474F"
+        android:layout_marginHorizontal="30dp"
+        android:layout_marginTop="-25dp"
+        app:cardCornerRadius="50dp"
+        app:cardElevation="8dp"
+        app:cardBackgroundColor="#FFFFFF"
         app:strokeColor="#FFC107"
-        app:strokeWidth="2dp"
-        android:layout_marginTop="20dp"
-        android:layout_marginHorizontal="20dp">
+        app:strokeWidth="3dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -26,84 +51,71 @@
             android:gravity="center"
             android:padding="12dp">
 
-            <ImageView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:src="@drawable/ic_spin"
-                app:tint="#FFC107"/>
-
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Available Spins: "
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:layout_marginStart="10dp"/>
+                android:text="Available Tokens: "
+                android:textColor="#757575"
+                android:textStyle="bold"/>
 
             <TextView
                 android:id="@+id/tv_spin_tokens"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0"
-                android:textColor="#FFC107"
+                android:textSize="20sp"
                 android:textStyle="bold"
-                android:textSize="24sp"
-                android:layout_marginStart="5dp"/>
+                android:textColor="#FFC107"
+                android:layout_marginStart="8dp"/>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Spin &amp; Win Cash!"
-        android:textColor="#FFFFFF"
-        android:textSize="28sp"
-        android:textStyle="bold"
-        android:layout_marginTop="30dp"/>
+    <!-- WHEEL AREA -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center">
 
-    <!-- Wheel Container -->
-    <FrameLayout
-        android:layout_width="320dp"
-        android:layout_height="320dp"
-        android:layout_marginTop="40dp">
-
-        <!-- Custom Wheel View -->
+        <!-- The Wheel View -->
+        <!-- Ensure LuckyWheelView is in the package com.smsindia.app.ui -->
         <com.smsindia.app.ui.LuckyWheelView
             android:id="@+id/wheel_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+            android:layout_width="320dp"
+            android:layout_height="320dp"
+            android:layout_centerInParent="true"/>
 
-        <!-- Center Indicator / Button -->
+        <!-- The Marker Arrow (Pointing Left at the 3 o'clock position) -->
+        <!-- Because the code says index 0 starts at 0 deg (Right side) -->
         <ImageView
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:src="@drawable/ic_spin" 
-            android:background="@drawable/bg_circle_edit"
-            app:tint="#FFFFFF"
-            android:layout_gravity="center"/>
-            
-        <!-- The Stopper Arrow (Pointing Left) -->
-         <ImageView
             android:layout_width="50dp"
             android:layout_height="50dp"
-            android:src="@android:drawable/arrow_down_float"
-            android:rotation="270"
-            app:tint="#FFFFFF"
-            android:layout_gravity="center_vertical|end"/>
+            android:src="@drawable/ic_marker_arrow"
+            android:layout_alignEnd="@id/wheel_view"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="-15dp" 
+            android:rotation="180"/> 
+            <!-- Rotation 180 makes standard arrow point Left -->
 
-    </FrameLayout>
+    </RelativeLayout>
 
-    <Button
-        android:id="@+id/btn_spin_now"
+    <!-- BUTTON: 3D GOLD STYLE -->
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:text="SPIN NOW"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginTop="50dp"
-        android:layout_marginHorizontal="20dp"
-        android:backgroundTint="#FFC107"
-        android:textColor="#000000"
-        app:cornerRadius="30dp"/>
+        android:layout_height="wrap_content"
+        android:padding="24dp">
+
+        <Button
+            android:id="@+id/btn_spin_now"
+            android:layout_width="match_parent"
+            android:layout_height="65dp"
+            android:text="SPIN NOW"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#5D4037"
+            android:background="@drawable/bg_gold_3d"
+            app:backgroundTint="@null"
+            android:elevation="6dp"/>
+    </LinearLayout>
 
 </LinearLayout>

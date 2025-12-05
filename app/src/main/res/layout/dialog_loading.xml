@@ -1,24 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp"
-    android:background="@drawable/dialog_background">
+    app:cardCornerRadius="24dp"
+    app:cardElevation="8dp"
+    app:cardBackgroundColor="#FFFFFF"
+    app:strokeColor="#FFC107"
+    app:strokeWidth="4dp">
 
-    <ProgressBar
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:indeterminateTint="#FF6A00" />
-
-    <TextView
-        android:id="@+id/tv_loading_message"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Please wait..."
-        android:textSize="16sp"
-        android:textColor="#333"
-        android:layout_marginTop="12dp" />
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingHorizontal="40dp"
+        android:paddingVertical="30dp">
 
-</LinearLayout>
+        <!-- Gold Progress Bar -->
+        <ProgressBar
+            android:layout_width="50dp"
+            android:layout_height="50dp"
+            android:indeterminateTint="#FFC107" />
+
+        <!-- Text in Dark Green -->
+        <TextView
+            android:id="@+id/tv_loading_message"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Please wait..."
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#1B5E20"
+            android:layout_marginTop="16dp" />
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

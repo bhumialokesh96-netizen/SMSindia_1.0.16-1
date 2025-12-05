@@ -2,7 +2,6 @@ package com.smsindia.app.ui;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -121,10 +120,8 @@ public class ShareFragment extends Fragment {
     }
 
     private void claimReward(Milestone m) {
-        // Optimistic UI update prevention
         if (claimedMilestones.containsKey(m.id) && (boolean) claimedMilestones.get(m.id)) return;
 
-        // Database Update
         db.collection("users").document(uid)
                 .update("coins", FieldValue.increment(m.reward), 
                         "claimed_milestones." + m.id, true)
@@ -159,6 +156,7 @@ public class ShareFragment extends Fragment {
 
         @NonNull @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            // Uses item_milestone.xml
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_milestone, parent, false);
             return new ViewHolder(v);
         }
@@ -177,30 +175,35 @@ public class ShareFragment extends Fragment {
             
             holder.progressBar.setProgress(progress);
 
-            // Determine Button State
+            // Determine State
             boolean isClaimed = claimedMilestones.containsKey(m.id);
             boolean isCompleted = current >= m.target;
 
             if (isClaimed) {
-                holder.btnClaim.setText("CLAIMED");
-                holder.btnClaim.setEnabled(false);
-                holder.btnClaim.setBackgroundTintList(ColorStateList.valueOf(Color.DKGRAY));
-                holder.imgIcon.setColorFilter(Color.GRAY);
+                // STATE 1: ALREADY CLAIMED
+                holder.btnClaim.setVisibility(View.GONE);
+                holder.tvProgress.setVisibility(View.VISIBLE);
+                
+                holder.tvProgress.setText("CLAIMED");
+                holder.tvProgress.setTextColor(Color.parseColor("#4CAF50")); // Green Text
+                holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); // Gold Border
+                
             } else if (isCompleted) {
+                // STATE 2: READY TO CLAIM (Show Gold 3D Button)
+                holder.tvProgress.setVisibility(View.GONE);
+                holder.btnClaim.setVisibility(View.VISIBLE);
+                
                 holder.btnClaim.setText("CLAIM");
-                holder.btnClaim.setEnabled(true);
-                
-                // ✅ FIXED COLOR ERROR HERE
-                holder.btnClaim.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#6200EE")));
-                holder.imgIcon.setColorFilter(Color.parseColor("#FFC107")); // Gold
-                
                 holder.btnClaim.setOnClickListener(v -> claimReward(m));
+                
             } else {
-                // In Progress
-                holder.btnClaim.setText(current + " / " + m.target);
-                holder.btnClaim.setEnabled(false);
-                holder.btnClaim.setBackgroundTintList(ColorStateList.valueOf(Color.DKGRAY));
-                holder.imgIcon.setColorFilter(Color.GRAY);
+                // STATE 3: IN PROGRESS (Show x/y text)
+                holder.btnClaim.setVisibility(View.GONE);
+                holder.tvProgress.setVisibility(View.VISIBLE);
+                
+                holder.tvProgress.setText(current + " / " + m.target);
+                holder.tvProgress.setTextColor(Color.parseColor("#FFC107")); // Gold Text
+                holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); // Gold Border
             }
         }
 
@@ -208,7 +211,7 @@ public class ShareFragment extends Fragment {
         public int getItemCount() { return list.size(); }
 
         class ViewHolder extends RecyclerView.ViewHolder {
-            TextView title, desc;
+            TextView title, desc, tvProgress; // Added tvProgress
             Button btnClaim;
             ImageView imgIcon;
             ProgressBar progressBar;
@@ -217,6 +220,8 @@ public class ShareFragment extends Fragment {
                 super(itemView);
                 title = itemView.findViewById(R.id.tv_milestone_title);
                 desc = itemView.findViewById(R.id.tv_milestone_desc);
+                // The new layout uses a specific ID for the count/status text
+                tvProgress = itemView.findViewById(R.id.tv_progress_count); 
                 btnClaim = itemView.findViewById(R.id.btn_claim_milestone);
                 imgIcon = itemView.findViewById(R.id.img_milestone_icon);
                 progressBar = itemView.findViewById(R.id.progress_milestone);

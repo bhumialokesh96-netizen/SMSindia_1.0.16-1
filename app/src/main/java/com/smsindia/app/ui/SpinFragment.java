@@ -29,13 +29,6 @@ public class SpinFragment extends Fragment {
 
     // Wheel Data corresponding to the LuckyWheelView string array
     // {"₹0.6", "₹0.8", "₹10", "₹0", "₹100", "₹0.6"}
-    // Indices:
-    // 0: ₹0.6
-    // 1: ₹0.8
-    // 2: ₹10
-    // 3: ₹0
-    // 4: ₹100
-    // 5: ₹0.6
     private Double[] rewardsValue = {0.6, 0.8, 10.0, 0.0, 100.0, 0.6};
 
     @Override
@@ -77,11 +70,12 @@ public class SpinFragment extends Fragment {
     private void startRiggedSpin() {
         isSpinning = true;
         btnSpin.setEnabled(false);
+        btnSpin.setAlpha(0.6f); // Fade button slightly to show it's disabled
 
         // Deduct Token in Cloud
         db.collection("users").document(uid).update("coins", FieldValue.increment(-1));
 
-        // --- PROBABILITY LOGIC (96% for 0.6) ---
+        // --- PROBABILITY LOGIC ---
         int targetIndex;
         int rand = new Random().nextInt(100); // 0 to 99
 
@@ -89,28 +83,19 @@ public class SpinFragment extends Fragment {
             // 96% Chance: Land on Index 0 or 5 (Values 0.6)
             targetIndex = (new Random().nextBoolean()) ? 0 : 5;
         } else {
-            // 4% Chance: Land on others (1, 2, 3, 4)
-            // 1=0.8, 2=10, 3=0, 4=100
+            // 4% Chance: Land on others
              int[] others = {1, 2, 3, 4};
              targetIndex = others[new Random().nextInt(others.length)];
         }
         
         // --- CALCULATE ROTATION ---
-        // 6 sectors total. Each is 60 degrees.
-        // We want the target sector to stop at the Right side (Indicator at 0 degrees usually, but let's assume Arrow is at 3 o'clock / 0 deg on unit circle)
-        // Adjust depending on where your start angle in LuckyWheelView is.
-        // In our View, index 0 starts at 0 deg (3 o'clock) going clockwise.
-        
         float sectorAngle = 360f / 6f;
         
-        // To land index i at the indicator (angle 0), we need to rotate negative i * sectorAngle.
-        // Adding rotation pushes the slice defined at start away.
-        // Final Rotation = (360 - (targetIndex * sectorAngle)) + (360 * rotations)
+        // The pointer is at 3 o'clock (0 degrees). 
+        // Logic: Final Angle pushes the target index to the 0 degree mark.
+        float finalAngle = (360 - (targetIndex * sectorAngle)) + (360 * 10); 
         
-        float finalAngle = (360 - (targetIndex * sectorAngle)) + (360 * 10); // 10 spins
-        
-        // Add a little randomness inside the sector center to look real
-        // Center of sector is sectorAngle/2.
+        // Center the slice
         finalAngle -= (sectorAngle / 2); 
 
         ObjectAnimator animator = ObjectAnimator.ofFloat(wheelView, "rotation", 0f, finalAngle);
@@ -125,6 +110,7 @@ public class SpinFragment extends Fragment {
             public void onAnimationEnd(android.animation.Animator animation) {
                 isSpinning = false;
                 btnSpin.setEnabled(true);
+                btnSpin.setAlpha(1.0f); // Restore button opacity
                 handleWin(reward);
             }
         });
@@ -134,9 +120,6 @@ public class SpinFragment extends Fragment {
         if (reward > 0) {
             Toast.makeText(getContext(), "You Won ₹" + reward + "!", Toast.LENGTH_LONG).show();
             db.collection("users").document(uid).update("balance", FieldValue.increment(reward));
-            
-            // Add Transaction History for tracking
-            // Use HashMap and specific collection reference if you implemented history earlier
         } else {
             Toast.makeText(getContext(), "Better Luck Next Time!", Toast.LENGTH_SHORT).show();
         }
