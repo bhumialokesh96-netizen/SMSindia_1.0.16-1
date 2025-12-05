@@ -1,60 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:background="#FFFFFF">
+    android:layout_margin="20dp"
+    app:cardCornerRadius="24dp"
+    app:cardBackgroundColor="#FFFFFF"
+    app:strokeColor="#FFC107"
+    app:strokeWidth="4dp"
+    app:cardElevation="8dp">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Bank Details"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"/>
+        android:orientation="vertical"
+        android:padding="24dp">
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Bank Name (e.g., SBI)">
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_bank_name"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:hint="Account Number">
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_bank_ac"
+        <!-- Header -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="number"/>
-    </com.google.android.material.textfield.TextInputLayout>
+            android:text="Bank Details"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#1B5E20"
+            android:gravity="center"
+            android:layout_marginBottom="20dp"/>
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:hint="IFSC Code">
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/et_bank_ifsc"
+        <!-- Name Input -->
+        <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textCapCharacters"/>
-    </com.google.android.material.textfield.TextInputLayout>
+            android:hint="Bank Name (e.g., SBI)"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="#1B5E20"
+            app:hintTextColor="#1B5E20">
+            
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_bank_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapWords"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-    <Button
-        android:id="@+id/btn_save_bank"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Save Details"
-        android:layout_marginTop="20dp"
-        android:backgroundTint="#6200EE"/>
+        <!-- Account Number Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="Account Number"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="#1B5E20"
+            app:hintTextColor="#1B5E20">
+            
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_bank_ac"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
-</LinearLayout>
+        <!-- IFSC Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="IFSC Code"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            app:boxStrokeColor="#1B5E20"
+            app:hintTextColor="#1B5E20">
+            
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/et_bank_ifsc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textCapCharacters"/>
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Save Button (3D Gold) -->
+        <Button
+            android:id="@+id/btn_save_bank"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:text="SAVE DETAILS"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="24dp"
+            android:textColor="#5D4037"
+            android:background="@drawable/bg_gold_3d"
+            app:backgroundTint="@null"/>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
