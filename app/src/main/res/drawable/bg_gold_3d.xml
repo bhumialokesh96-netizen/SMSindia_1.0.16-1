@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+
+    <!-- Gradient: Lighter on top, Darker on bottom (3D effect) -->
+    <gradient
+        android:startColor="#FFECB3"
+        android:endColor="#FFC107"
+        android:angle="270" />
+
+    <!-- Darker Orange Border for the button -->
+    <stroke
+        android:width="2dp"
+        android:color="#FFA000" />
+
+    <!-- Rounded Corners -->
+    <corners android:radius="50dp" />
+
+</shape>
