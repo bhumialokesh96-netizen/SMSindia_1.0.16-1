@@ -53,7 +53,7 @@
                 android:padding="5dp"/>
         </LinearLayout>
 
-        <!-- WALLET CARD (Corrected IDs) -->
+                <!-- WALLET CARD (Design: Dark Green + Thick Gold Border | Content: Original) -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardBalance"
             android:layout_width="match_parent"
@@ -61,9 +61,9 @@
             android:layout_margin="16dp"
             app:cardCornerRadius="16dp"
             app:cardElevation="8dp"
-            app:cardBackgroundColor="#FF9800"
-            app:strokeColor="#4CAF50"
-            app:strokeWidth="3dp">
+            app:cardBackgroundColor="#1B5E20"
+            app:strokeColor="#FFC107"
+            app:strokeWidth="4dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -75,11 +75,11 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Total Balance"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#E8F5E9"
                     android:textSize="14sp"
                     android:alpha="0.9"/>
 
-                <!-- Corrected ID: tv_balance_amount -->
+                <!-- Original ID maintained -->
                 <TextView
                     android:id="@+id/tv_balance_amount"
                     android:layout_width="wrap_content"
@@ -90,24 +90,23 @@
                     android:textStyle="bold"
                     android:layout_marginTop="8dp"/>
 
-                <!-- Corrected ID: btn_history -->
+                <!-- Original ID maintained -->
                 <Button
                     android:id="@+id/btn_history"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
                     android:layout_marginTop="20dp"
                     android:text="VIEW WALLET HISTORY"
-                    android:textColor="#FFFFFF"
+                    android:textColor="#1B5E20"
+                    android:textStyle="bold"
                     android:textSize="12sp"
                     android:letterSpacing="0.1"
-                    android:backgroundTint="#F57C00"
+                    android:backgroundTint="#FFC107"
                     app:cornerRadius="8dp"/>
 
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
-
-
+        
         <!-- Slidable Banners (ViewPager2) -->
         <TextView
             android:id="@+id/lbl_featured"
