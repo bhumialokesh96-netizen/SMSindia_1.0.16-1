@@ -1,4 +1,4 @@
-package com.smsindia.app.workers;
+package com.smsindia.app.services;
 
 import android.app.Activity;
 import android.app.Notification;

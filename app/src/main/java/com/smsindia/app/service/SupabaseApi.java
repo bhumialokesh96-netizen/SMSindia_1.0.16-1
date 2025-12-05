@@ -1,4 +1,4 @@
-package com.smsindia.app.workers; // Make sure this matches your folder!
+package com.smsindia.app.services; // Make sure this matches your folder!
 
 import java.util.List;
 import retrofit2.Call;
