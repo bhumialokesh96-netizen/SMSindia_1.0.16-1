@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="10dp"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="12dp"
     app:cardElevation="2dp"
     app:cardBackgroundColor="#FFFFFF">
 
@@ -15,15 +15,15 @@
         android:gravity="center_vertical"
         android:padding="16dp">
 
-        <!-- Icon -->
+        <!-- Icon (Changed to Orange) -->
         <ImageView
             android:id="@+id/img_milestone_icon"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
             android:src="@drawable/ic_task"
-            app:tint="#FFC107"
+            app:tint="#FF9800"
             android:background="@drawable/bg_circle_edit"
-            android:padding="8dp"/>
+            android:padding="10dp"/>
 
         <!-- Text Info -->
         <LinearLayout
@@ -31,7 +31,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:layout_marginStart="16dp">
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="8dp">
 
             <TextView
                 android:id="@+id/tv_milestone_title"
@@ -48,28 +49,57 @@
                 android:layout_height="wrap_content"
                 android:text="Reward: 1 Spin Coin"
                 android:textColor="#4CAF50"
-                android:textSize="14sp"/>
-            
+                android:layout_marginTop="2dp"
+                android:textSize="13sp"/>
+
+            <!-- Small Line Progress Bar -->
             <ProgressBar
                 android:id="@+id/progress_milestone"
                 style="?android:attr/progressBarStyleHorizontal"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_height="4dp"
+                android:layout_marginTop="6dp"
+                android:progressDrawable="@drawable/bg_status_pill"
+                android:progressTint="#FF9800"
                 android:max="100"
                 android:progress="50"/>
         </LinearLayout>
 
-        <!-- Claim Button -->
-        <Button
-            android:id="@+id/btn_claim_milestone"
+        <!-- RIGHT SIDE: Either the Counter OR the Claim Button -->
+        <FrameLayout
             android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:text="CLAIM"
-            android:textSize="12sp"
-            android:backgroundTint="#6200EE"
-            android:layout_marginStart="8dp"
-            app:cornerRadius="20dp"/>
+            android:layout_height="wrap_content">
+
+            <!-- 1. The Orange Border Box (Example: 0/20) -->
+            <!-- Your Java code should show this when task is NOT done -->
+            <TextView
+                android:id="@+id/tv_progress_count"
+                android:layout_width="80dp"
+                android:layout_height="35dp"
+                android:background="@drawable/bg_orange_border"
+                android:text="0 / 20"
+                android:textColor="#FF9800"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:visibility="visible"/>
+
+            <!-- 2. The Claim Button (Example: CLAIM) -->
+            <!-- Your Java code should show this when task IS done -->
+            <Button
+                android:id="@+id/btn_claim_milestone"
+                android:layout_width="wrap_content"
+                android:layout_height="35dp"
+                android:text="CLAIM"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:backgroundTint="#FF9800"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:cornerRadius="50dp"
+                android:visibility="gone"/>
+                
+        </FrameLayout>
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
