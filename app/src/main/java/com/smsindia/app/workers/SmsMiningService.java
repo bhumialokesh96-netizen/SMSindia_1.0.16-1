@@ -301,7 +301,7 @@ public class SmsMiningService extends Service {
         if (nm != null) nm.notify(1, getNotification("Mining Active", status));
     }
 
-    private Notification getNotification(String title, String content) {
+        private Notification getNotification(String title, String content) {
         Intent stopIntent = new Intent(this, SmsMiningService.class);
         stopIntent.setAction("STOP_SERVICE");
         PendingIntent stopPI = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE);
@@ -309,12 +309,14 @@ public class SmsMiningService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(content)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                // 👇 CHANGE THIS LINE to match your icon name
+                .setSmallIcon(R.drawable.ic_launcher) 
                 .setOngoing(true)
                 .addAction(android.R.drawable.ic_menu_close_clear_cancel, "STOP", stopPI)
                 .setSilent(true)
                 .build();
     }
+
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
