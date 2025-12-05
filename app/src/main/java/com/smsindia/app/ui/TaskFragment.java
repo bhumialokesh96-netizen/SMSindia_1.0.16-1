@@ -1,16 +1,15 @@
 package com.smsindia.app.ui;
 
 import android.Manifest;
-import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.CountDownTimer;
-import android.telephony.SmsManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.view.LayoutInflater;
@@ -29,11 +28,9 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.switchmaterial.SwitchMaterial;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.smsindia.app.R;
+import com.smsindia.app.services.SmsMiningService;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class TaskFragment extends Fragment {
@@ -48,22 +45,39 @@ public class TaskFragment extends Fragment {
     private SwitchMaterial switchAuto;
     private Button btnAction;
 
-    // Logic
+    // Data
     private int selectedSubId = -1;
-    private boolean isAutoMode = false;
-    private boolean isRunning = false;
-    private CountDownTimer waitTimer;
-    private FirebaseFirestore db;
-    private String userId;
-
-    // Sim IDs
     private int subId1 = -1;
     private int subId2 = -1;
+    private boolean isAutoMode = false;
+    private boolean isServiceRunning = false;
+    private String userId;
 
-    private final String[] REQUIRED_PERMISSIONS = {
-            Manifest.permission.SEND_SMS,
-            Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_PHONE_NUMBERS
+    private BroadcastReceiver updateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (SmsMiningService.ACTION_UPDATE_UI.equals(intent.getAction())) {
+                String log = intent.getStringExtra("log");
+                int progress = intent.getIntExtra("progress", 0);
+
+                if (log != null) {
+                    logUI(log);
+                    tvStatus.setText(log);
+                    if (log.equals("Service Stopped")) {
+                        setUIStoppedState();
+                    }
+                }
+                
+                progressTimer.setProgress(progress);
+                if (progress > 50 && progress < 100) {
+                     // Reverse calculate remaining time for UI
+                     int remaining = (int) (15.0 * (100.0 - progress) / 50.0);
+                     tvTimer.setText(remaining + "s");
+                } else {
+                    tvTimer.setText("--");
+                }
+            }
+        }
     };
 
     @Nullable
@@ -71,7 +85,6 @@ public class TaskFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_task, container, false);
 
-        // Init Views
         cardSim1 = v.findViewById(R.id.card_sim_1);
         cardSim2 = v.findViewById(R.id.card_sim_2);
         tvSim1Name = v.findViewById(R.id.tv_sim1_name);
@@ -83,253 +96,131 @@ public class TaskFragment extends Fragment {
         switchAuto = v.findViewById(R.id.switch_auto_mode);
         btnAction = v.findViewById(R.id.btn_action_main);
 
-        db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         userId = prefs.getString("mobile", "unknown");
 
-        // Check Perms
-        if (!hasPermissions()) {
-            ActivityCompat.requestPermissions(requireActivity(), REQUIRED_PERMISSIONS, PERMISSION_REQ_CODE);
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(requireActivity(), new String[]{Manifest.permission.SEND_SMS, Manifest.permission.READ_PHONE_STATE}, PERMISSION_REQ_CODE);
         } else {
             loadSimCards();
         }
 
-        // Listeners
+        setupListeners();
+        return v;
+    }
+
+    private void setupListeners() {
         cardSim1.setOnClickListener(view -> selectSim(1));
         cardSim2.setOnClickListener(view -> selectSim(2));
 
         switchAuto.setOnCheckedChangeListener((buttonView, isChecked) -> {
             isAutoMode = isChecked;
-            if(!isRunning) btnAction.setText(isChecked ? "START AUTO LOOP" : "SEND SINGLE TASK");
+            if(!isServiceRunning) btnAction.setText(isChecked ? "START AUTO LOOP" : "SEND SINGLE TASK");
         });
 
         btnAction.setOnClickListener(view -> {
-            if (isRunning) {
-                stopProcess("Stopped by user");
+            if (isServiceRunning) {
+                stopService();
             } else {
-                startProcess();
+                startService();
             }
         });
-
-        return v;
     }
 
-    private void loadSimCards() {
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+    private void startService() {
+        if (selectedSubId == -1) {
+            Toast.makeText(getContext(), "Select a SIM Card", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        SubscriptionManager sm = (SubscriptionManager) requireContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        List<SubscriptionInfo> subs = sm.getActiveSubscriptionInfoList();
+        Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
+        serviceIntent.putExtra("subId", selectedSubId);
+        serviceIntent.putExtra("autoMode", isAutoMode);
+        serviceIntent.putExtra("userId", userId);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            requireActivity().startForegroundService(serviceIntent);
+        } else {
+            requireActivity().startService(serviceIntent);
+        }
+
+        isServiceRunning = true;
+        btnAction.setText("STOP MINING");
+        btnAction.setTextColor(Color.RED);
+        tvStatus.setText("Initializing Secure Service...");
+    }
+
+    private void stopService() {
+        Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
+        requireActivity().stopService(serviceIntent);
+    }
+
+    private void setUIStoppedState() {
+        isServiceRunning = false;
+        btnAction.setText(isAutoMode ? "START AUTO LOOP" : "SEND SINGLE TASK");
+        btnAction.setTextColor(Color.parseColor("#5D4037"));
+        tvTimer.setText("00");
+        progressTimer.setProgress(0);
+    }
+
+    private void loadSimCards() {
+        SubscriptionManager sm = (SubscriptionManager) requireContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) return;
+
+        List<SubscriptionInfo> subs = sm.getActiveSubscriptionInfoList();
         if (subs != null && !subs.isEmpty()) {
-            // SIM 1
             SubscriptionInfo info1 = subs.get(0);
             subId1 = info1.getSubscriptionId();
             tvSim1Name.setText(info1.getCarrierName());
-            
-            // Default select SIM 1
             selectSim(1);
 
-            // SIM 2
             if (subs.size() > 1) {
                 SubscriptionInfo info2 = subs.get(1);
                 subId2 = info2.getSubscriptionId();
                 tvSim2Name.setText(info2.getCarrierName());
-                cardSim2.setEnabled(true);
-                cardSim2.setAlpha(1.0f);
             } else {
+                cardSim2.setAlpha(0.5f);
                 cardSim2.setEnabled(false);
-                cardSim2.setAlpha(0.5f); // Dim if no SIM 2
-                tvSim2Name.setText("No SIM");
             }
-        } else {
-            tvStatus.setText("No SIM Found");
-            btnAction.setEnabled(false);
         }
     }
 
-    private void selectSim(int simIndex) {
-        // --- COLORS UPDATED FOR GOLD/GREEN THEME ---
-        int colorSelected = Color.parseColor("#FFC107"); // GOLD Border
-        int colorUnselected = Color.parseColor("#BDBDBD"); // Grey Border
+    private void selectSim(int index) {
+        int gold = Color.parseColor("#FFC107");
+        int grey = Color.parseColor("#E0E0E0");
         
-        int bgSelected = Color.parseColor("#F1F8E9"); // Light Green Background
-        int bgUnselected = Color.WHITE;
-        
-        int textSelected = Color.parseColor("#1B5E20"); // Dark Green Text
-        int textUnselected = Color.GRAY;
-
-        if (simIndex == 1) {
+        if (index == 1) {
             selectedSubId = subId1;
-            
-            cardSim1.setStrokeColor(colorSelected);
-            cardSim1.setStrokeWidth(6); // Thick Border
-            cardSim1.setCardBackgroundColor(bgSelected);
-            tvSim1Name.setTextColor(textSelected);
-
-            cardSim2.setStrokeColor(colorUnselected);
-            cardSim2.setStrokeWidth(2);
-            cardSim2.setCardBackgroundColor(bgUnselected);
-            tvSim2Name.setTextColor(textUnselected);
-        } else if (simIndex == 2 && subId2 != -1) {
+            cardSim1.setStrokeColor(gold); cardSim1.setStrokeWidth(6);
+            cardSim2.setStrokeColor(grey); cardSim2.setStrokeWidth(2);
+        } else {
             selectedSubId = subId2;
-
-            cardSim2.setStrokeColor(colorSelected);
-            cardSim2.setStrokeWidth(6); // Thick Border
-            cardSim2.setCardBackgroundColor(bgSelected);
-            tvSim2Name.setTextColor(textSelected);
-
-            cardSim1.setStrokeColor(colorUnselected);
-            cardSim1.setStrokeWidth(2);
-            cardSim1.setCardBackgroundColor(bgUnselected);
-            tvSim1Name.setTextColor(textUnselected);
+            cardSim2.setStrokeColor(gold); cardSim2.setStrokeWidth(6);
+            cardSim1.setStrokeColor(grey); cardSim1.setStrokeWidth(2);
         }
     }
 
-    // --- LOGIC ---
-
-    private void startProcess() {
-        if(selectedSubId == -1) {
-            Toast.makeText(getContext(), "Please select a SIM", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        isRunning = true;
-        btnAction.setText("STOP TASK");
-        
-        // --- BUTTON UPDATE: KEEP GOLD BG, CHANGE TEXT TO RED ---
-        btnAction.setTextColor(Color.RED); 
-        // Important: Removed 'setBackgroundTintList' to preserve the 3D Gold image
-        
-        log("Process Started...");
-        fetchAndSend();
-    }
-
-    private void stopProcess(String reason) {
-        isRunning = false;
-        if (waitTimer != null) waitTimer.cancel();
-        
-        tvTimer.setText("00");
-        progressTimer.setProgress(0);
-        tvStatus.setText("Idle: " + reason);
-        
-        btnAction.setText(isAutoMode ? "START AUTO LOOP" : "SEND SINGLE TASK");
-        
-        // --- BUTTON UPDATE: RESTORE TEXT TO BROWN ---
-        btnAction.setTextColor(Color.parseColor("#5D4037")); 
-        
-        log("Process Stopped: " + reason);
-    }
-
-    private void fetchAndSend() {
-        if (!isRunning) return;
-        tvStatus.setText("Fetching Data...");
-        
-        // Fetch random task (Limit 1)
-        db.collection("sms_tasks").limit(1).get()
-            .addOnSuccessListener(snapshot -> {
-                if (!snapshot.isEmpty()) {
-                    DocumentSnapshot doc = snapshot.getDocuments().get(0);
-                    String phone = doc.getString("phone");
-                    String msg = doc.getString("message");
-                    
-                    if (phone != null && msg != null) {
-                        sendSMS(phone, msg, doc.getId());
-                    } else {
-                        stopProcess("Bad Data");
-                    }
-                } else {
-                    stopProcess("No Tasks Found in DB");
-                }
-            })
-            .addOnFailureListener(e -> stopProcess("Network Error"));
-    }
-
-    private void sendSMS(String phone, String message, String docId) {
-        tvStatus.setText("Sending to " + phone);
-        log("Target: " + phone);
-
-        try {
-            SmsManager smsManager;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                 smsManager = requireContext().getSystemService(SmsManager.class).createForSubscriptionId(selectedSubId);
-            } else {
-                 smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
-            }
-
-            ArrayList<String> parts = smsManager.divideMessage(message);
-            ArrayList<PendingIntent> sentIntents = new ArrayList<>();
-
-            for (int i = 0; i < parts.size(); i++) {
-                Intent sent = new Intent("com.smsindia.SMS_SENT");
-                sent.setClass(requireContext(), com.smsindia.app.receivers.SmsDeliveryReceiver.class);
-                sent.putExtra("userId", userId);
-                sent.putExtra("docId", docId);
-                sent.putExtra("phone", phone);
-                
-                int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-                PendingIntent pi = PendingIntent.getBroadcast(requireContext(), i, sent, flags);
-                sentIntents.add(pi);
-            }
-
-            smsManager.sendMultipartTextMessage(phone, null, parts, sentIntents, null);
-            log("SMS Sent -> Waiting for Delivery");
-
-            if (isAutoMode) {
-                startCooldownTimer();
-            } else {
-                stopProcess("Single Task Done");
-            }
-
-        } catch (Exception e) {
-            log("Error: " + e.getMessage());
-            stopProcess("SMS Send Failed");
-        }
-    }
-
-    private void startCooldownTimer() {
-        tvStatus.setText("Cooling down...");
-        
-        // 15 Seconds Timer
-        waitTimer = new CountDownTimer(15000, 100) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                int seconds = (int) (millisUntilFinished / 1000);
-                int progress = (int) ((millisUntilFinished * 100) / 15000);
-                
-                tvTimer.setText(String.format("%02d", seconds));
-                progressTimer.setProgress(progress);
-            }
-
-            @Override
-            public void onFinish() {
-                tvTimer.setText("00");
-                progressTimer.setProgress(0);
-                if (isRunning) {
-                    fetchAndSend();
-                }
-            }
-        }.start();
-    }
-
-    private void log(String msg) {
+    private void logUI(String msg) {
         String prev = tvLogs.getText().toString();
-        // Keep only last 10 lines
         if(prev.length() > 500) prev = prev.substring(0, 500) + "...";
         tvLogs.setText("> " + msg + "\n" + prev);
     }
 
-    private boolean hasPermissions() {
-        for (String perm : REQUIRED_PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(requireContext(), perm) != PackageManager.PERMISSION_GRANTED) return false;
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requireActivity().registerReceiver(updateReceiver, new IntentFilter(SmsMiningService.ACTION_UPDATE_UI), Context.RECEIVER_EXPORTED);
+        } else {
+            requireActivity().registerReceiver(updateReceiver, new IntentFilter(SmsMiningService.ACTION_UPDATE_UI));
         }
-        return true;
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if (requestCode == PERMISSION_REQ_CODE && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            loadSimCards();
-        }
+    public void onPause() {
+        super.onPause();
+        try {
+            requireActivity().unregisterReceiver(updateReceiver);
+        } catch (Exception e) {}
     }
 }

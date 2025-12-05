@@ -15,11 +15,13 @@
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- 🚨 REQUIRED FOR BACKGROUND MINING (Android 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:name=".MyApp"
@@ -33,43 +35,12 @@
         android:theme="@style/Theme.SMSIndia.NoActionBar"
         tools:targetApi="35">
 
-        <!-- LOGIN ACTIVITY -->
-        <activity
-            android:name=".LoginActivity"
+        <!-- ✅ THE NEW MINING ENGINE (Must be registered here) -->
+        <service
+            android:name=".services.SmsMiningService"
+            android:enabled="true"
             android:exported="false"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.SMSIndia.NoActionBar" />
-
-        <!-- MAIN ACTIVITY (Holds Home, Spin, Tasks, Share, Profile Fragments) -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.SMSIndia.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- DELIVERY LOGS -->
-        <activity
-            android:name=".ui.DeliveryLogActivity"
-            android:exported="false"
-            android:label="Delivery Logs" />
-
-        <!-- HISTORY (General Transactions) -->
-        <activity
-            android:name=".ui.HistoryActivity"
-            android:exported="false"
-            android:label="Wallet History"
-            android:parentActivityName=".MainActivity" />
-
-        <!-- WITHDRAWAL HISTORY -->
-        <activity
-            android:name=".ui.WithdrawalHistoryActivity"
-            android:exported="false"
-            android:label="Withdrawals"
-            android:parentActivityName=".MainActivity" />
+            android:foregroundServiceType="dataSync" />
 
         <!-- FIREBASE MESSAGING -->
         <service
@@ -80,17 +51,43 @@
             </intent-filter>
         </service>
 
-        <!-- SMS DELIVERY RECEIVER -->
-        <receiver
-            android:name=".receivers.SmsDeliveryReceiver"
-            android:enabled="true"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.smsindia.SMS_DELIVERED" />
-            </intent-filter>
-        </receiver>
+        <!-- LOGIN ACTIVITY -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.SMSIndia.NoActionBar" />
 
-        <!-- BOOT RECEIVER -->
+        <!-- MAIN ACTIVITY -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.SMSIndia.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- SUB ACTIVITIES -->
+        <activity
+            android:name=".ui.DeliveryLogActivity"
+            android:exported="false"
+            android:label="Delivery Logs" />
+
+        <activity
+            android:name=".ui.HistoryActivity"
+            android:exported="false"
+            android:label="Wallet History"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".ui.WithdrawalHistoryActivity"
+            android:exported="false"
+            android:label="Withdrawals"
+            android:parentActivityName=".MainActivity" />
+
+        <!-- BOOT RECEIVER (Restarts mining on phone reboot if you coded it) -->
         <receiver
             android:name=".receivers.BootReceiver"
             android:enabled="true"
