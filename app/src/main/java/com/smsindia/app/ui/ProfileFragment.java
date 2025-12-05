@@ -55,9 +55,6 @@ public class ProfileFragment extends Fragment {
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
         TextView btnAddBank = v.findViewById(R.id.btn_add_bank);
         
-        // Assuming you might add a Share button in XML later
-        // Button btnShare = v.findViewById(R.id.btn_share_app); 
-
         layoutSavedBankView = v.findViewById(R.id.layout_saved_bank);
         tvBankName = v.findViewById(R.id.tv_bank_name);
         tvBankAc = v.findViewById(R.id.tv_bank_ac);
@@ -76,7 +73,7 @@ public class ProfileFragment extends Fragment {
         btnAddBank.setOnClickListener(view -> showAddBankDialog());
         btnWithdraw.setOnClickListener(view -> requestWithdrawal());
 
-        // 2. History
+        // 2. History Page
         btnHistory.setOnClickListener(view -> {
             try {
                 Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
@@ -85,30 +82,8 @@ public class ProfileFragment extends Fragment {
                 Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
             }
         });
-        
-        // 3. (Optional) If you add a "Refer Friend" button in XML, uncomment this:
-        // btnShare.setOnClickListener(view -> shareReferralLink());
-
-        // NOTE: imgProfile click listener is REMOVED. It is now permanent.
 
         return v;
-    }
-
-    // --- NEW: REFERRAL LINK SHARING (Connects to Vercel) ---
-    private void shareReferralLink() {
-        if(uid == null || uid.isEmpty()) return;
-
-        // Your Vercel Link with the user's ID
-        String shareUrl = "https://smsindia-web.vercel.app/?ref=" + uid;
-
-        String message = "🔥 Earn ₹500 Daily! Download SMS India App.\n" +
-                         "Use my Referral Link to get a Bonus:\n\n" + 
-                         shareUrl;
-
-        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType("text/plain");
-        shareIntent.putExtra(Intent.EXTRA_TEXT, message);
-        startActivity(Intent.createChooser(shareIntent, "Share via"));
     }
 
     private void fetchUserData() {

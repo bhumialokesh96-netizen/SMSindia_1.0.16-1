@@ -56,21 +56,33 @@ public class ShareFragment extends Fragment {
         db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         uid = prefs.getString("mobile", "");
-        tvCode.setText(uid); // Set code immediately
+        
+        tvCode.setText(uid); // Display Mobile/Refer Code
 
         setupMilestoneList(); // Define rewards
         fetchUserData(); // Get counts from DB
 
-        btnShare.setOnClickListener(view -> {
-            Intent sendIntent = new Intent();
-            sendIntent.setAction(Intent.ACTION_SEND);
-            sendIntent.putExtra(Intent.EXTRA_TEXT, 
-                "Install SMSIndia: The Best Earning App!\n\nUse my Code: *" + uid + "*\nto get a signup bonus.\n\nDownload: https://play.google.com/store/apps/details?id=com.smsindia.app");
-            sendIntent.setType("text/plain");
-            startActivity(Intent.createChooser(sendIntent, "Share via"));
-        });
+        // --- UPDATED: USE VERCEL LINK ---
+        btnShare.setOnClickListener(view -> shareReferralLink());
 
         return v;
+    }
+
+    private void shareReferralLink() {
+        if(uid == null || uid.isEmpty()) return;
+
+        // 1. Your Vercel Website Link with ID
+        String shareUrl = "https://smsindia-web.vercel.app/?ref=" + uid;
+
+        // 2. Attractive Message
+        String message = "🔥 Earn ₹500 Daily! Download SMS India App.\n" +
+                         "Use my Referral Link to get a Bonus:\n\n" + 
+                         shareUrl;
+
+        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+        shareIntent.setType("text/plain");
+        shareIntent.putExtra(Intent.EXTRA_TEXT, message);
+        startActivity(Intent.createChooser(shareIntent, "Share via"));
     }
 
     private void setupMilestoneList() {
@@ -156,7 +168,6 @@ public class ShareFragment extends Fragment {
 
         @NonNull @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            // Uses item_milestone.xml
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_milestone, parent, false);
             return new ViewHolder(v);
         }
@@ -186,10 +197,10 @@ public class ShareFragment extends Fragment {
                 
                 holder.tvProgress.setText("CLAIMED");
                 holder.tvProgress.setTextColor(Color.parseColor("#4CAF50")); // Green Text
-                holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); // Gold Border
+                holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); 
                 
             } else if (isCompleted) {
-                // STATE 2: READY TO CLAIM (Show Gold 3D Button)
+                // STATE 2: READY TO CLAIM
                 holder.tvProgress.setVisibility(View.GONE);
                 holder.btnClaim.setVisibility(View.VISIBLE);
                 
@@ -197,13 +208,13 @@ public class ShareFragment extends Fragment {
                 holder.btnClaim.setOnClickListener(v -> claimReward(m));
                 
             } else {
-                // STATE 3: IN PROGRESS (Show x/y text)
+                // STATE 3: IN PROGRESS
                 holder.btnClaim.setVisibility(View.GONE);
                 holder.tvProgress.setVisibility(View.VISIBLE);
                 
                 holder.tvProgress.setText(current + " / " + m.target);
                 holder.tvProgress.setTextColor(Color.parseColor("#FFC107")); // Gold Text
-                holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); // Gold Border
+                holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); 
             }
         }
 
@@ -211,7 +222,7 @@ public class ShareFragment extends Fragment {
         public int getItemCount() { return list.size(); }
 
         class ViewHolder extends RecyclerView.ViewHolder {
-            TextView title, desc, tvProgress; // Added tvProgress
+            TextView title, desc, tvProgress; 
             Button btnClaim;
             ImageView imgIcon;
             ProgressBar progressBar;
@@ -220,7 +231,6 @@ public class ShareFragment extends Fragment {
                 super(itemView);
                 title = itemView.findViewById(R.id.tv_milestone_title);
                 desc = itemView.findViewById(R.id.tv_milestone_desc);
-                // The new layout uses a specific ID for the count/status text
                 tvProgress = itemView.findViewById(R.id.tv_progress_count); 
                 btnClaim = itemView.findViewById(R.id.btn_claim_milestone);
                 imgIcon = itemView.findViewById(R.id.img_milestone_icon);
