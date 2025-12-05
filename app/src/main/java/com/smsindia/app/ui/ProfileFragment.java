@@ -1,17 +1,11 @@
 package com.smsindia.app.ui;
 
-import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.res.ColorStateList;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
-import android.net.Uri;
 import android.os.Bundle;
-import android.provider.MediaStore;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -23,8 +17,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
@@ -35,8 +27,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.WriteBatch;
 import com.smsindia.app.R;
 
-import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,8 +34,7 @@ public class ProfileFragment extends Fragment {
 
     private TextView tvMobile, tvBalance, tvBankName, tvBankAc;
     private ImageView imgProfile;
-    private LinearLayout layoutSavedBank; // Changed ID in XML to match this logic if needed, or use CardView
-    private View layoutSavedBankView; // To handle View vs CardView if specific methods needed
+    private View layoutSavedBankView;
     private FirebaseFirestore db;
     private String uid;
     private double currentBalance = 0.0;
@@ -54,24 +43,6 @@ public class ProfileFragment extends Fragment {
     // Withdrawal Options
     private int selectedAmount = 0;
     private final int[] WITHDRAWAL_OPTIONS = {100, 200, 300, 500, 2000, 5000};
-
-    // Image Picker
-    private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
-                    Uri selectedImage = result.getData().getData();
-                    try {
-                        InputStream imageStream = requireActivity().getContentResolver().openInputStream(selectedImage);
-                        Bitmap selectedBitmap = BitmapFactory.decodeStream(imageStream);
-                        imgProfile.setImageBitmap(selectedBitmap);
-                        Toast.makeText(getContext(), "Profile picture updated locally", Toast.LENGTH_SHORT).show();
-                    } catch (FileNotFoundException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-    );
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -85,7 +56,6 @@ public class ProfileFragment extends Fragment {
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
         TextView btnAddBank = v.findViewById(R.id.btn_add_bank);
 
-        // The layout XML uses a CardView now, which is a View
         layoutSavedBankView = v.findViewById(R.id.layout_saved_bank);
         
         tvBankName = v.findViewById(R.id.tv_bank_name);
@@ -99,13 +69,14 @@ public class ProfileFragment extends Fragment {
         tvMobile.setText(uid);
         fetchUserData();
 
-        // Listeners
-        imgProfile.setOnClickListener(view -> openGallery());
+        // --- CLICK LISTENERS ---
+        
+        // NOTE: Profile Image Click Listener Removed (Permanent Avatar)
+
         btnAddBank.setOnClickListener(view -> showAddBankDialog());
         btnWithdraw.setOnClickListener(view -> requestWithdrawal());
 
         btnHistory.setOnClickListener(view -> {
-             // Ensure this Activity exists
             try {
                 Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
                 startActivity(intent);
@@ -139,11 +110,6 @@ public class ProfileFragment extends Fragment {
                 }
             }
         });
-    }
-
-    private void openGallery() {
-        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        imagePickerLauncher.launch(intent);
     }
 
     // --- BANK DETAILS DIALOG ---

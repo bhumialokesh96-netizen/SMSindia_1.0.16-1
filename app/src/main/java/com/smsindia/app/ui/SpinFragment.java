@@ -1,7 +1,10 @@
 package com.smsindia.app.ui;
 
 import android.animation.ObjectAnimator;
+import android.app.AlertDialog;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -27,8 +30,7 @@ public class SpinFragment extends Fragment {
     private long spinTokens = 0;
     private boolean isSpinning = false;
 
-    // Wheel Data corresponding to the LuckyWheelView string array
-    // {"₹0.6", "₹0.8", "₹10", "₹0", "₹100", "₹0.6"}
+    // Wheel Data
     private Double[] rewardsValue = {0.6, 0.8, 10.0, 0.0, 100.0, 0.6};
 
     @Override
@@ -61,7 +63,7 @@ public class SpinFragment extends Fragment {
         if(uid.isEmpty()) return;
         db.collection("users").document(uid).addSnapshotListener((snapshot, e) -> {
             if (e != null || snapshot == null) return;
-            Long tokens = snapshot.getLong("coins"); // Assuming 'coins' is spin token
+            Long tokens = snapshot.getLong("coins");
             spinTokens = (tokens != null) ? tokens : 0;
             tvTokens.setText(String.valueOf(spinTokens));
         });
@@ -70,32 +72,24 @@ public class SpinFragment extends Fragment {
     private void startRiggedSpin() {
         isSpinning = true;
         btnSpin.setEnabled(false);
-        btnSpin.setAlpha(0.6f); // Fade button slightly to show it's disabled
+        btnSpin.setAlpha(0.6f);
 
-        // Deduct Token in Cloud
+        // Deduct Token
         db.collection("users").document(uid).update("coins", FieldValue.increment(-1));
 
         // --- PROBABILITY LOGIC ---
         int targetIndex;
-        int rand = new Random().nextInt(100); // 0 to 99
+        int rand = new Random().nextInt(100); 
 
         if (rand < 96) {
-            // 96% Chance: Land on Index 0 or 5 (Values 0.6)
-            targetIndex = (new Random().nextBoolean()) ? 0 : 5;
+            targetIndex = (new Random().nextBoolean()) ? 0 : 5; // 0.6
         } else {
-            // 4% Chance: Land on others
              int[] others = {1, 2, 3, 4};
              targetIndex = others[new Random().nextInt(others.length)];
         }
         
-        // --- CALCULATE ROTATION ---
         float sectorAngle = 360f / 6f;
-        
-        // The pointer is at 3 o'clock (0 degrees). 
-        // Logic: Final Angle pushes the target index to the 0 degree mark.
         float finalAngle = (360 - (targetIndex * sectorAngle)) + (360 * 10); 
-        
-        // Center the slice
         finalAngle -= (sectorAngle / 2); 
 
         ObjectAnimator animator = ObjectAnimator.ofFloat(wheelView, "rotation", 0f, finalAngle);
@@ -110,7 +104,7 @@ public class SpinFragment extends Fragment {
             public void onAnimationEnd(android.animation.Animator animation) {
                 isSpinning = false;
                 btnSpin.setEnabled(true);
-                btnSpin.setAlpha(1.0f); // Restore button opacity
+                btnSpin.setAlpha(1.0f);
                 handleWin(reward);
             }
         });
@@ -118,10 +112,39 @@ public class SpinFragment extends Fragment {
 
     private void handleWin(Double reward) {
         if (reward > 0) {
-            Toast.makeText(getContext(), "You Won ₹" + reward + "!", Toast.LENGTH_LONG).show();
+            // Update Database
             db.collection("users").document(uid).update("balance", FieldValue.increment(reward));
+            
+            // Show Custom Dialog instead of Toast
+            showWinDialog(reward);
+            
         } else {
             Toast.makeText(getContext(), "Better Luck Next Time!", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    // --- NEW DIALOG FUNCTION ---
+    private void showWinDialog(Double amount) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_spin_win, null);
+        builder.setView(view);
+        AlertDialog dialog = builder.create();
+        
+        // Make background transparent so rounded corners show
+        if(dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
+
+        TextView tvAmount = view.findViewById(R.id.tv_win_amount);
+        Button btnCollect = view.findViewById(R.id.btn_collect_win);
+
+        tvAmount.setText("₹" + amount);
+
+        btnCollect.setOnClickListener(v -> {
+            dialog.dismiss();
+        });
+
+        dialog.setCancelable(false); // Force user to click Collect
+        dialog.show();
     }
 }
