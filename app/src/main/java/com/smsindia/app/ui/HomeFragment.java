@@ -17,10 +17,14 @@ import android.widget.Toast;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
+// ✅ THESE ARE THE MISSING IMPORTS YOU NEEDED
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.WriteBatch;
+import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.Transaction;
+
 import com.smsindia.app.R;
 
 import java.text.SimpleDateFormat;
@@ -52,8 +56,6 @@ public class HomeFragment extends Fragment {
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         Button btnHistory = v.findViewById(R.id.btn_history);
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
-        
-        // ✅ NEW: Find the WhatsApp Card
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
 
         // Initialize Firebase
@@ -66,8 +68,6 @@ public class HomeFragment extends Fragment {
 
         // Click Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
-        
-        // ✅ NEW: Add Click Listener for WhatsApp
         whatsappCard.setOnClickListener(view -> showWhatsAppLoginDialog());
         
         btnHistory.setOnClickListener(view -> {
@@ -82,7 +82,7 @@ public class HomeFragment extends Fragment {
         return v;
     }
 
-    // ✅ NEW: WhatsApp Logic (Controlled by Admin Panel)
+    // --- WHATSAPP LOGIC ---
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_whatsapp_login, null);
@@ -104,7 +104,7 @@ public class HomeFragment extends Fragment {
             btnGetCode.setText("Checking Server...");
             btnGetCode.setEnabled(false);
 
-            // 1. CHECK FIREBASE ADMIN SETTINGS
+            // Check Admin Panel Settings
             db.collection("app_settings").document("whatsapp_config").get()
                 .addOnSuccessListener(documentSnapshot -> {
                     boolean isActive = false;
@@ -136,6 +136,7 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
+    // --- DAILY CHECK-IN ---
     private void showDailyCheckInDialog() {
         if (uid == null || uid.isEmpty()) return;
         
@@ -205,41 +206,47 @@ public class HomeFragment extends Fragment {
             btnClaim.setText("CLAIM ₹" + rewardAmount);
             btnClaim.setBackgroundResource(R.drawable.bg_gold_3d);
             btnClaim.setTextColor(Color.parseColor("#5D4037")); 
-            btnClaim.setOnClickListener(v -> claimReward(currentDay, rewardAmount, todayDate, dialog));
+            
+            // Call the Secure Claim Method
+            btnClaim.setOnClickListener(v -> {
+                btnClaim.setEnabled(false);
+                btnClaim.setText("Processing...");
+                claimReward(currentDay, rewardAmount, todayDate, dialog);
+            });
         }
 
         btnClose.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
-        private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
+    // ✅ SECURE TRANSACTION METHOD (Prevents Double Claim)
+    private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
         if (uid == null) return;
         
         final DocumentReference userRef = db.collection("users").document(uid);
         final DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
 
         db.runTransaction((Transaction.Function<Void>) transaction -> {
-            // 1. READ: Get the latest data from server securely
+            // 1. READ
             DocumentSnapshot snapshot = transaction.get(userRef);
 
-            // 2. SECURITY CHECK: Did they already claim today?
+            // 2. CHECK SECURITY
             String serverLastDate = snapshot.getString("last_checkin_date");
             if (serverLastDate != null && serverLastDate.equals(todayDate)) {
-                // STOP RIGHT HERE! Abort transaction.
+                // Abort if already claimed
                 throw new FirebaseFirestoreException("Already Claimed Today!", FirebaseFirestoreException.Code.ABORTED);
             }
 
-            // 3. CALCULATE: Get current balance safely
+            // 3. CALCULATE
             Double currentBalance = snapshot.getDouble("balance");
             if (currentBalance == null) currentBalance = 0.0;
             double newBalance = currentBalance + amount;
 
-            // 4. WRITE: Update everything at once
+            // 4. WRITE
             transaction.update(userRef, "balance", newBalance);
             transaction.update(userRef, "last_checkin_date", todayDate);
             transaction.update(userRef, "streak", day);
 
-            // 5. HISTORY: Create the record
             Map<String, Object> txData = new HashMap<>();
             txData.put("title", "Daily Check-in (Day " + day + ")");
             txData.put("amount", amount);
@@ -249,20 +256,17 @@ public class HomeFragment extends Fragment {
 
             return null;
         }).addOnSuccessListener(aVoid -> {
-            // ✅ Success
             Toast.makeText(getContext(), "Claimed ₹" + amount + " successfully!", Toast.LENGTH_SHORT).show();
-            if (dialog != null && dialog.isShowing()) dialog.dismiss();
+            if(dialog.isShowing()) dialog.dismiss();
         }).addOnFailureListener(e -> {
-            // ❌ Failed (or Double Claim Attempt)
             if (e.getMessage() != null && e.getMessage().contains("Already Claimed")) {
                 Toast.makeText(getContext(), "Nice try! You already claimed today.", Toast.LENGTH_SHORT).show();
             } else {
                 Toast.makeText(getContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
-            if (dialog != null && dialog.isShowing()) dialog.dismiss();
+            if(dialog.isShowing()) dialog.dismiss();
         });
     }
-
 
     private void setupBannerSlider() {
         List<Integer> bannerList = new ArrayList<>();
