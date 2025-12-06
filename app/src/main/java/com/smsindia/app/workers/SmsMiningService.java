@@ -151,36 +151,45 @@ public class SmsMiningService extends Service {
             });
     }
 
-    private void sendSmsWithDelayCheck(String phone, String message, String taskId) {
+       private void sendSmsWithDelayCheck(String phone, String message, String taskId) {
         try {
             SmsManager smsManager;
+            
+            // 1. Get SMS Manager for Specific SIM (Dual SIM Support)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 smsManager = getSystemService(SmsManager.class).createForSubscriptionId(selectedSubId);
             } else {
                 smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
             }
 
-            ArrayList<String> parts = smsManager.divideMessage(message);
-            ArrayList<PendingIntent> sentIntents = new ArrayList<>();
+            // 2. FIX BUG: Generate Unique Request Code based on Task ID
+            // This ensures the callback is not overwritten by the next message
+            int uniqueRequestCode = taskId.hashCode();
 
-            for (int i = 0; i < parts.size(); i++) {
-                if (i == parts.size() - 1) {
-                    Intent sent = new Intent(SENT_ACTION);
-                    sent.putExtra("phone", phone);
-                    sent.putExtra("taskId", taskId);
-                    sent.putExtra("msgBody", message); 
-                    int token = (int) System.currentTimeMillis();
-                    sentIntents.add(PendingIntent.getBroadcast(this, token, sent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-                } else {
-                    sentIntents.add(null);
-                }
-            }
-            smsManager.sendMultipartTextMessage(phone, null, parts, sentIntents, null);
+            // 3. Prepare PendingIntent
+            Intent sentIntent = new Intent(SENT_ACTION);
+            sentIntent.putExtra("phone", phone);
+            sentIntent.putExtra("taskId", taskId);
+            sentIntent.putExtra("msgBody", message);
+
+            PendingIntent sentPI = PendingIntent.getBroadcast(
+                this, 
+                uniqueRequestCode, // Unique ID here
+                sentIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            // 4. SEND SINGLE MESSAGE (Simple & Reliable)
+            smsManager.sendTextMessage(phone, null, message, sentPI, null);
+
         } catch (Exception e) {
+            // Log error and retry logic
+            e.printStackTrace();
             releaseCpu();
             handleSmartSleep("SIM Error");
         }
     }
+
 
     private void registerSentReceiver() {
         sentReceiver = new BroadcastReceiver() {
