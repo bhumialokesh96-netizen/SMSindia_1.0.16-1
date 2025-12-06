@@ -8,10 +8,9 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- HEADER: Dark Green -->
+                <!-- HEADER: Dark Green -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -21,29 +20,27 @@
             android:paddingVertical="30dp"
             android:paddingBottom="50dp">
 
-            <!-- Profile Image with Gold Border -->
+            <!-- Profile Image -->
             <androidx.cardview.widget.CardView
                 android:layout_width="90dp"
                 android:layout_height="90dp"
                 app:cardCornerRadius="45dp"
-                app:cardElevation="0dp">
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#CCCCCC"> <!-- Added Grey Background to Card -->
+
+                <!-- CHANGED: Used a System Icon to ensure it shows -->
                 <ImageView
-    android:id="@+id/img_profile"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:src="@drawable/ic_user_avatar"
-    android:scaleType="centerInside"
-    android:background="#BDBDBD" 
-    android:padding="15dp"/>
+                    android:id="@+id/img_profile"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:src="@android:drawable/sym_def_app_icon" 
+                    android:scaleType="centerInside"
+                    android:padding="15dp"/>
 
             </androidx.cardview.widget.CardView>
             
-            <!-- Ring around image -->
-            <View
-                android:layout_width="100dp"
-                android:layout_height="100dp"
-                android:background="@drawable/bg_coin_circle"
-                android:layout_marginTop="-95dp"/>
+            <!-- ❌ DELETED THE RING VIEW TO FIX THE WHITE BLOCKER -->
+            <!-- I removed the <View ... /> code that was here -->
 
             <TextView
                 android:id="@+id/tv_profile_mobile"
@@ -55,6 +52,7 @@
                 android:textStyle="bold"
                 android:layout_marginTop="12dp"/>
         </LinearLayout>
+
 
         <!-- BALANCE CARD (Overlapping) -->
         <com.google.android.material.card.MaterialCardView
