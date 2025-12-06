@@ -12,6 +12,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.os.Handler;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.view.KeyEvent;
@@ -32,9 +33,10 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 import com.google.android.material.switchmaterial.SwitchMaterial;
 import com.smsindia.app.R;
-import com.smsindia.app.workers.SmsMiningService; // ✅ Correct Import
+import com.smsindia.app.workers.SmsMiningService; 
 
 import java.util.List;
+import java.util.Locale;
 
 public class TaskFragment extends Fragment {
 
@@ -52,17 +54,16 @@ public class TaskFragment extends Fragment {
     private int selectedSubId = -1;
     private int subId1 = -1;
     private int subId2 = -1;
-    private boolean isAutoMode = true; // Default to true for Batch Mode
+    private boolean isAutoMode = true; 
     private boolean isServiceRunning = false;
     private String userId;
 
-    // 📡 RECEIVER: Listens for Updates AND "Batch Complete" Signal
+    // Receiver to handle updates from Service
     private final BroadcastReceiver updateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
 
-            // 1. UPDATE LOGS & PROGRESS
             if (SmsMiningService.ACTION_UPDATE_UI.equals(action)) {
                 String log = intent.getStringExtra("log");
                 int progress = intent.getIntExtra("progress", 0);
@@ -70,23 +71,18 @@ public class TaskFragment extends Fragment {
                 if (log != null) {
                     logUI(log);
                     tvStatus.setText(log);
-                    if (log.equals("Service Stopped")) {
-                        setUIStoppedState();
-                    }
+                    if (log.equals("Service Stopped")) setUIStoppedState();
                 }
-                
                 progressTimer.setProgress(progress);
-                if (progress > 0 && progress < 100) {
-                     tvTimer.setText(progress + "%");
-                } else {
-                    tvTimer.setText("--");
-                }
+                if (progress > 0 && progress < 100) tvTimer.setText(progress + "%");
+                else tvTimer.setText("--");
             }
-            
-            // 2. BATCH COMPLETE -> SHOW DIALOG
             else if (SmsMiningService.ACTION_BATCH_COMPLETE.equals(action)) {
                 setUIStoppedState();
-                showSyncDialog(); // 🛑 TRIGGER THE LOCK
+                // ✅ Get stats passed from Service (Success Count & Earnings)
+                int success = intent.getIntExtra("successCount", 0);
+                double earned = intent.getDoubleExtra("earned", 0.0);
+                showSyncDialog(success, earned); 
             }
         }
     };
@@ -123,18 +119,10 @@ public class TaskFragment extends Fragment {
     private void setupListeners() {
         cardSim1.setOnClickListener(view -> selectSim(1));
         cardSim2.setOnClickListener(view -> selectSim(2));
-
-        // Auto mode switch is visual mainly, logic assumes batch mode
-        switchAuto.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            isAutoMode = isChecked;
-        });
-
+        switchAuto.setOnCheckedChangeListener((buttonView, isChecked) -> isAutoMode = isChecked);
         btnAction.setOnClickListener(view -> {
-            if (isServiceRunning) {
-                stopService();
-            } else {
-                startService();
-            }
+            if (isServiceRunning) stopService();
+            else startService();
         });
     }
 
@@ -143,10 +131,8 @@ public class TaskFragment extends Fragment {
             Toast.makeText(getContext(), "Select a SIM Card", Toast.LENGTH_SHORT).show();
             return;
         }
-
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
         serviceIntent.putExtra("subId", selectedSubId);
-        serviceIntent.putExtra("autoMode", true); // Always Auto for Batch Mode
         serviceIntent.putExtra("userId", userId);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -159,12 +145,13 @@ public class TaskFragment extends Fragment {
         btnAction.setText("STOP BATCH");
         btnAction.setTextColor(Color.RED);
         tvStatus.setText("Starting Batch of 10...");
-        progressTimer.setIndeterminate(true);
+        progressTimer.setIndeterminate(false);
+        progressTimer.setProgress(0);
     }
 
     private void stopService() {
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
-        serviceIntent.setAction("STOP_SERVICE"); // Use explicit stop action
+        serviceIntent.setAction("STOP_SERVICE");
         requireActivity().startService(serviceIntent);
         setUIStoppedState();
     }
@@ -178,53 +165,38 @@ public class TaskFragment extends Fragment {
         progressTimer.setProgress(0);
     }
 
-    // 🔒 THE UNSKIPPABLE LOCK DIALOG
-       // 🔒 THE CUSTOM POPUP DIALOG
-    private void showSyncDialog() {
+    // 🎨 CUSTOM DIALOG LOGIC FOR YOUR XML
+    private void showSyncDialog(int successCount, double earnedAmount) {
         if (getActivity() == null) return;
 
-        // 1. Inflate the Custom Layout
         AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
         LayoutInflater inflater = requireActivity().getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_sync_timer, null);
         builder.setView(dialogView);
-        builder.setCancelable(false); // 🚫 Locked
+        builder.setCancelable(false);
 
-        // 2. Get Views from the Layout
+        // Find Views
         TextView tvTimer = dialogView.findViewById(R.id.dialog_tv_timer);
         android.widget.ProgressBar progressBar = dialogView.findViewById(R.id.dialog_progress_bar);
-
-        // 3. Create & Show
-        AlertDialog dialog = builder.create();
         
-        // Make background transparent so rounded corners show
+        AlertDialog dialog = builder.create();
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
         }
-        
         dialog.show();
 
-        // 4. BLOCK BACK BUTTON
-        dialog.setOnKeyListener((dialogInterface, keyCode, event) -> {
-            if (keyCode == KeyEvent.KEYCODE_BACK) {
-                // Shake effect or Toast
-                Toast.makeText(getActivity(), "⚠️ Synchronization in progress!", Toast.LENGTH_SHORT).show();
-                return true; 
-            }
-            return false;
-        });
+        // Block Back Button
+        dialog.setOnKeyListener((dialogInterface, keyCode, event) -> keyCode == KeyEvent.KEYCODE_BACK);
 
-        // 5. START 60s TIMER
+        // Start 60s Timer
         new CountDownTimer(60000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 if (dialog.isShowing()) {
                     int secondsLeft = (int) (millisUntilFinished / 1000);
                     tvTimer.setText(String.valueOf(secondsLeft));
-                    
-                    // Update Circular Progress (Max 60)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        progressBar.setProgress(secondsLeft, true); // Smooth animation
+                        progressBar.setProgress(secondsLeft, true);
                     } else {
                         progressBar.setProgress(secondsLeft);
                     }
@@ -234,15 +206,33 @@ public class TaskFragment extends Fragment {
             @Override
             public void onFinish() {
                 if (dialog.isShowing()) {
-                    dialog.dismiss();
-                    Toast.makeText(getActivity(), "✅ Synchronization Complete!", Toast.LENGTH_LONG).show();
-                    tvStatus.setText("Batch Complete. Ready for next.");
-                    logUI("Batch Sync Completed.");
+                    // 1. Hide the "seconds" text to make room
+                    // Since "seconds" doesn't have an ID in your XML, we find it via parent
+                    try {
+                        ViewGroup parentLayout = (ViewGroup) tvTimer.getParent();
+                        if (parentLayout.getChildCount() > 1) {
+                            // The "seconds" text is the second child in that LinearLayout
+                            parentLayout.getChildAt(1).setVisibility(View.GONE); 
+                        }
+                    } catch (Exception e) { /* Ignore if layout structure differs */ }
+
+                    // 2. Update the Big Text with Result
+                    tvTimer.setTextSize(20); // Smaller font to fit the text
+                    tvTimer.setText(String.format(Locale.US, "Done!\n%d/10 Sent\n+₹%.2f", successCount, earnedAmount));
+                    tvTimer.setTextColor(Color.parseColor("#4CAF50")); // Green Success Color
+                    
+                    // 3. Stop Progress Bar
+                    progressBar.setProgress(0);
+                    
+                    // 4. Close Dialog after 4 seconds
+                    new Handler().postDelayed(() -> {
+                        if (dialog.isShowing()) dialog.dismiss();
+                        tvStatus.setText("Batch Complete. Ready for next.");
+                    }, 4000);
                 }
             }
         }.start();
     }
-
 
     private void loadSimCards() {
         SubscriptionManager sm = (SubscriptionManager) requireContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
@@ -269,7 +259,6 @@ public class TaskFragment extends Fragment {
     private void selectSim(int index) {
         int gold = Color.parseColor("#FFC107");
         int grey = Color.parseColor("#E0E0E0");
-        
         if (index == 1) {
             selectedSubId = subId1;
             cardSim1.setStrokeColor(gold); cardSim1.setStrokeWidth(6);
@@ -290,11 +279,9 @@ public class TaskFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        // Register for BOTH actions
         IntentFilter filter = new IntentFilter();
         filter.addAction(SmsMiningService.ACTION_UPDATE_UI);
         filter.addAction(SmsMiningService.ACTION_BATCH_COMPLETE);
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requireActivity().registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED);
         } else {
@@ -305,8 +292,6 @@ public class TaskFragment extends Fragment {
     @Override
     public void onPause() {
         super.onPause();
-        try {
-            requireActivity().unregisterReceiver(updateReceiver);
-        } catch (Exception e) {}
+        try { requireActivity().unregisterReceiver(updateReceiver); } catch (Exception e) {}
     }
 }

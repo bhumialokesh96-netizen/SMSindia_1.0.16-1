@@ -23,7 +23,6 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-// ✅ IMPORTS (Make sure these match your folder structure)
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.TaskModel;
 
@@ -63,7 +62,9 @@ public class SmsMiningService extends Service {
     private int selectedSubId = -1;
     private String userId;
     
+    // 🔢 COUNTERS
     private int tasksProcessedInBatch = 0;
+    private int successCount = 0; // ✅ Tracks successful sends
     private final int BATCH_LIMIT = 10;
     
     private FirebaseFirestore db;
@@ -98,12 +99,10 @@ public class SmsMiningService extends Service {
             selectedSubId = intent.getIntExtra("subId", -1);
             userId = intent.getStringExtra("userId");
 
-            // ⚠️ LOGGING FOR DEBUGGING
-            Log.d("SMS_MINER", "Starting Service for UserID: " + userId);
-
             if (!isRunning) {
                 isRunning = true;
                 tasksProcessedInBatch = 0;
+                successCount = 0; // ✅ Reset success count
                 startForeground(1, getNotification("Mining Active", "Starting Batch..."));
                 fetchAndClaimTask(); 
             }
@@ -115,15 +114,15 @@ public class SmsMiningService extends Service {
         if (!isRunning) return;
 
         if (tasksProcessedInBatch >= BATCH_LIMIT) {
-            sendBroadcastUpdate("Batch Complete! Syncing...", 100);
-            sendBatchCompleteSignal();
+            sendBroadcastUpdate("Syncing...", 100);
+            sendBatchCompleteSignal(); // ✅ Sends final count to UI
             stopServiceSafely();
             return;
         }
 
         acquireCpu();
         int progressPercent = (tasksProcessedInBatch * 100) / BATCH_LIMIT;
-        sendBroadcastUpdate("Fetching Task " + (tasksProcessedInBatch + 1) + "/10", progressPercent);
+        sendBroadcastUpdate("Task " + (tasksProcessedInBatch + 1) + "/10", progressPercent);
 
         supabaseApi.getTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY)
             .enqueue(new Callback<List<TaskModel>>() {
@@ -131,7 +130,7 @@ public class SmsMiningService extends Service {
                 public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         TaskModel task = response.body().get(0);
-                        if (processedTaskIds.contains(task.id)) { handleSmartSleep("Duplicate Task"); return; }
+                        if (processedTaskIds.contains(task.id)) { handleSmartSleep("Duplicate"); return; }
                         
                         processedTaskIds.add(task.id);
                         if(processedTaskIds.size() > 50) processedTaskIds.clear();
@@ -140,14 +139,14 @@ public class SmsMiningService extends Service {
                         sendSmsWithDelayCheck(task.phone, task.message, task.id);
                     } else {
                         releaseCpu();
-                        handleSmartSleep("No Tasks Available");
+                        handleSmartSleep("No Tasks");
                     }
                 }
 
                 @Override
                 public void onFailure(Call<List<TaskModel>> call, Throwable t) {
                     releaseCpu();
-                    handleSmartSleep("Network Error: " + t.getMessage());
+                    handleSmartSleep("Net Error");
                 }
             });
     }
@@ -177,10 +176,9 @@ public class SmsMiningService extends Service {
                 }
             }
             smsManager.sendMultipartTextMessage(phone, null, parts, sentIntents, null);
-            sendBroadcastUpdate("Sending SMS...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
         } catch (Exception e) {
             releaseCpu();
-            handleSmartSleep("SIM Error: " + e.getMessage());
+            handleSmartSleep("SIM Error");
         }
     }
 
@@ -188,21 +186,13 @@ public class SmsMiningService extends Service {
         sentReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                // 🚀 DIRECT SUCCESS CHECK (Bypassing strict DB verification)
                 if (getResultCode() == Activity.RESULT_OK) {
-                    String phone = intent.getStringExtra("phone");
-                    String taskId = intent.getStringExtra("taskId");
-                    
-                    sendBroadcastUpdate("Crediting Balance...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
-                    
-                    // 💰 Give Reward Immediately
-                    processReward(phone, taskId);
-                    
+                    successCount++; // ✅ Increment Success Count
+                    sendBroadcastUpdate("Crediting...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
+                    processReward(intent.getStringExtra("phone"), intent.getStringExtra("taskId"));
                 } else {
                     releaseCpu();
-                    // If SIM fails, we still count it to keep batch moving, or retry?
-                    // Let's retry logic:
-                    handleSmartSleep("SMS Failed (Signal/Radio)");
+                    nextTaskInBatch();
                 }
             }
         };
@@ -210,66 +200,36 @@ public class SmsMiningService extends Service {
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
     }
 
-    // ⚠️ This function is kept but NOT used in this version to ensure money is added
-    private void verifyViaDatabase(Context context, String phone, String msgBody, String taskId) {
-       // Intentionally skipped to fix balance issue
-    }
-
     private void processReward(String phone, String taskId) {
-        if (userId == null || userId.equals("unknown")) {
-            sendBroadcastUpdate("Error: User not logged in", 0);
-            return;
-        }
-
+        if (userId == null) return;
         final DocumentReference userRef = db.collection("users").document(userId);
         
         db.runTransaction((Transaction.Function<Void>) transaction -> {
             DocumentSnapshot userSnap = transaction.get(userRef);
-            
-            // Create user doc if missing (safety check)
-            if (!userSnap.exists()) {
-                Map<String, Object> newUser = new HashMap<>();
-                newUser.put("balance", 0.0);
-                newUser.put("sms_count", 0);
-                transaction.set(userRef, newUser);
-                userSnap = transaction.get(userRef); // reload
-            }
+            if (!userSnap.exists()) { return null; }
             
             Double currentBalance = userSnap.getDouble("balance");
             if (currentBalance == null) currentBalance = 0.0;
             
-            // 💰 UPDATE BALANCE
             transaction.update(userRef, "balance", currentBalance + REWARD);
             transaction.update(userRef, "sms_count", FieldValue.increment(1));
             
-            // 📝 LOG ENTRY
             DocumentReference logRef = userRef.collection("delivery_logs").document(taskId);
             Map<String, Object> log = new HashMap<>();
             log.put("phone", phone);
-            log.put("status", "SENT_OK"); // Changed status to indicate success
+            log.put("status", "SENT_OK");
             log.put("amount", REWARD);
             log.put("timestamp", FieldValue.serverTimestamp());
             transaction.set(logRef, log);
-            
             return null;
         }).addOnSuccessListener(aVoid -> {
-            // ✅ SUCCESS
-            sendBroadcastUpdate("Balance Added: +₹" + REWARD, (tasksProcessedInBatch * 100) / BATCH_LIMIT);
             nextTaskInBatch(); 
-        }).addOnFailureListener(e -> {
-             // ❌ FAILURE
-             Log.e("SMS_MINER", "Firebase Error: " + e.getMessage());
-             sendBroadcastUpdate("Wallet Error: " + e.getMessage(), (tasksProcessedInBatch * 100) / BATCH_LIMIT);
-             // Even if wallet update fails, we move to next task so app doesn't freeze
-             // But wait a bit longer
-             new Handler(getMainLooper()).postDelayed(this::nextTaskInBatch, 2000);
-        });
+        }).addOnFailureListener(e -> nextTaskInBatch());
     }
 
     private void nextTaskInBatch() {
         tasksProcessedInBatch++; 
         releaseCpu();
-        // Small delay before next task
         new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, 1500);
     }
 
@@ -288,15 +248,27 @@ public class SmsMiningService extends Service {
 
     private void sendBatchCompleteSignal() {
         Intent intent = new Intent(ACTION_BATCH_COMPLETE);
+        // ✅ Pass final stats to UI
+        intent.putExtra("successCount", successCount);
+        intent.putExtra("earned", successCount * REWARD);
         sendBroadcast(intent);
     }
     
     // Standard Utils
     private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10*60*1000L); }
     private void releaseCpu() { if (wakeLock != null && wakeLock.isHeld()) wakeLock.release(); }
-    private void updateNotification(String status) { NotificationManager nm = getSystemService(NotificationManager.class); if (nm != null) nm.notify(1, getNotification("Mining Active", status)); }
+    private void updateNotification(String status) { 
+        NotificationManager nm = getSystemService(NotificationManager.class); 
+        if (nm != null) nm.notify(1, getNotification("Mining Active", status)); 
+    }
     private Notification getNotification(String title, String content) {
-        return new NotificationCompat.Builder(this, CHANNEL_ID).setContentTitle(title).setContentText(content).setSmallIcon(android.R.drawable.ic_launcher).setOngoing(true).setSilent(true).build();
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(title)
+                .setContentText(content)
+                .setSmallIcon(R.drawable.ic_launcher) // ✅ Fixed Icon
+                .setOngoing(true)
+                .setSilent(true)
+                .build();
     }
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
