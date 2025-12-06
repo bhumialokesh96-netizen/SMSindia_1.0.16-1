@@ -23,15 +23,30 @@ jobs:
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v3
 
-      # ✅ Important: give execute permission before running Gradle
       - name: Grant execute permission for Gradlew
         run: chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
+      # ✅ NEW STEP: Rename the APK file to include Version Number
+      - name: Rename APK to Versioned Name
+        run: |
+          # Define the version name using the GitHub Run Number
+          VERSION_NAME="V_1.0.${{ github.run_number }}"
+          
+          # Go to the folder where Gradle outputs the APK
+          cd app/build/outputs/apk/debug/
+          
+          # Rename 'app-debug.apk' to 'SMSindia_V_1.0.15.apk'
+          mv app-debug.apk SMSindia_$VERSION_NAME.apk
+          
+          echo "Renamed APK to SMSindia_$VERSION_NAME.apk"
+
+      # ✅ UPDATED STEP: Upload with dynamic name
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SMSindia-debug-apk
+          # This changes the name in the GitHub Artifacts list
+          name: SMSindia_V_1.0.${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk

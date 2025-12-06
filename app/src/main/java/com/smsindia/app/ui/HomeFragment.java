@@ -166,41 +166,66 @@ public class HomeFragment extends Fragment {
             btnClaim.setTextColor(Color.parseColor("#5D4037")); // Brown text
             
             btnClaim.setOnClickListener(v -> {
-                claimReward(currentDay, rewardAmount, todayDate, dialog);
-            });
-        }
+    // 1. DISABLE BUTTON INSTANTLY
+    btnClaim.setEnabled(false);
+    btnClaim.setText("Processing...");
+    btnClaim.setBackgroundTintList(getContext().getColorStateList(android.R.color.darker_gray));
+    
+    // 2. Then call the function
+    claimReward(currentDay, rewardAmount, todayDate, dialog);
+});
+
 
         btnClose.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
-    private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
-        WriteBatch batch = db.batch();
-        DocumentReference userRef = db.collection("users").document(uid);
-        DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
+       private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
+        final DocumentReference userRef = db.collection("users").document(uid);
+        final DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
 
-        // 1. Update User Balance & Streak
-        Map<String, Object> userUpdates = new HashMap<>();
-        userUpdates.put("balance", FieldValue.increment(amount));
-        userUpdates.put("last_checkin_date", todayDate);
-        userUpdates.put("streak", day);
-        batch.update(userRef, userUpdates);
+        db.runTransaction((Transaction.Function<Void>) transaction -> {
+            DocumentSnapshot snapshot = transaction.get(userRef);
+            
+            // SECURITY CHECK: Read the date again inside the transaction
+            String serverLastDate = snapshot.getString("last_checkin_date");
+            if (serverLastDate != null && serverLastDate.equals(todayDate)) {
+                throw new FirebaseFirestoreException("Already Claimed!", FirebaseFirestoreException.Code.ABORTED);
+            }
 
-        // 2. Add History Record
-        Map<String, Object> txData = new HashMap<>();
-        txData.put("title", "Daily Check-in (Day " + day + ")");
-        txData.put("amount", amount);
-        txData.put("type", "CREDIT");
-        txData.put("timestamp", FieldValue.serverTimestamp());
-        batch.set(historyRef, txData);
+            // Calculate new balance
+            Double currentBalance = snapshot.getDouble("balance");
+            if (currentBalance == null) currentBalance = 0.0;
+            double newBalance = currentBalance + amount;
 
-        batch.commit().addOnSuccessListener(aVoid -> {
+            // Perform Updates
+            transaction.update(userRef, "balance", newBalance);
+            transaction.update(userRef, "last_checkin_date", todayDate);
+            transaction.update(userRef, "streak", day);
+
+            // Add History
+            Map<String, Object> txData = new HashMap<>();
+            txData.put("title", "Daily Check-in (Day " + day + ")");
+            txData.put("amount", amount);
+            txData.put("type", "CREDIT");
+            txData.put("timestamp", FieldValue.serverTimestamp());
+            transaction.set(historyRef, txData);
+
+            return null;
+        }).addOnSuccessListener(aVoid -> {
             Toast.makeText(getContext(), "Claimed ₹" + amount + " successfully!", Toast.LENGTH_SHORT).show();
             dialog.dismiss();
         }).addOnFailureListener(e -> {
-            Toast.makeText(getContext(), "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            // Check if it failed because of our Security Check
+            if (e.getMessage().contains("Already Claimed")) {
+                Toast.makeText(getContext(), "You have already claimed this today!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+            dialog.dismiss();
         });
     }
+
 
        private void setupBannerSlider() {
         List<Integer> bannerList = new ArrayList<>();
