@@ -1,6 +1,3 @@
-find where is that bottom
-
-
 package com.smsindia.app.ui;
 
 import android.app.AlertDialog;
