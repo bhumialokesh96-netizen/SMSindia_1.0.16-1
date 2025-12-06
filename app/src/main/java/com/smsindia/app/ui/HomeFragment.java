@@ -10,8 +10,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,7 +22,6 @@ import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.Transaction;
-import com.google.firebase.firestore.WriteBatch;
 import com.smsindia.app.R;
 
 import java.text.SimpleDateFormat;
@@ -41,122 +38,43 @@ public class HomeFragment extends Fragment {
     private ViewPager2 bannerViewPager;
     private FirebaseFirestore db;
     private String uid;
-
-    // Rewards for 10 Days
+    
     private final int[] DAILY_REWARDS = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // Initialize Views
         tvBalanceAmount = v.findViewById(R.id.tv_balance_amount);
         tvUserMobile = v.findViewById(R.id.tv_user_mobile);
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         Button btnHistory = v.findViewById(R.id.btn_history);
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
-        
-        // NEW: WhatsApp Card
-        View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
 
-        // Initialize Firebase
         db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        uid = prefs.getString("mobile", "");
+        uid = prefs.getString("mobile", ""); 
 
-        // Setup
         setupBannerSlider();
         fetchUserBalance();
 
-        // Click Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         
-        // NEW: WhatsApp Listener
-        whatsappCard.setOnClickListener(view -> showWhatsAppLoginDialog());
-
         btnHistory.setOnClickListener(view -> {
             try {
                 Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
                 startActivity(intent);
             } catch (ClassNotFoundException e) {
-                Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
+                 Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
             }
         });
-
+        
         return v;
     }
 
-    // --- WHATSAPP LOGIC (ADMIN CONTROLLED) ---
-    private void showWhatsAppLoginDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        // Ensure you have created dialog_whatsapp_login.xml
-        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_whatsapp_login, null);
-        builder.setView(view);
-        AlertDialog dialog = builder.create();
-        
-        if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-
-        EditText etNumber = view.findViewById(R.id.et_wa_number);
-        Button btnGetCode = view.findViewById(R.id.btn_get_code);
-        View btnCancel = view.findViewById(R.id.btn_cancel_wa);
-
-        btnGetCode.setOnClickListener(v -> {
-            String number = etNumber.getText().toString().trim();
-            if (number.length() != 10) {
-                etNumber.setError("Enter valid 10-digit number");
-                return;
-            }
-
-            btnGetCode.setText("Checking Server...");
-            btnGetCode.setEnabled(false);
-
-            // 1. CHECK FIREBASE SETTINGS FIRST
-            db.collection("app_settings").document("whatsapp_config").get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    boolean isActive = false;
-                    String apiUrl = "";
-                    String msg = "Server Update: WhatsApp Pairing is coming soon!";
-                    
-                    if (documentSnapshot.exists()) {
-                        // Read from Admin Panel settings
-                        if(documentSnapshot.contains("is_active")) 
-                            isActive = Boolean.TRUE.equals(documentSnapshot.getBoolean("is_active"));
-                        
-                        apiUrl = documentSnapshot.getString("api_url");
-                        
-                        if(documentSnapshot.contains("maintenance_msg")) 
-                            msg = documentSnapshot.getString("maintenance_msg");
-                    }
-
-                    if (isActive && apiUrl != null && !apiUrl.isEmpty()) {
-                        // --- API IS LIVE! ---
-                        // Admin has enabled it. 
-                        // You will add the connection logic here later.
-                        Toast.makeText(getContext(), "Connecting to WhatsApp Server...", Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                    } else {
-                        // --- API IS OFF (DEFAULT) ---
-                        // Show "Coming Soon" message
-                        Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
-                        dialog.dismiss();
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
-                    btnGetCode.setEnabled(true);
-                    btnGetCode.setText("GET PAIRING CODE");
-                });
-        });
-
-        btnCancel.setOnClickListener(v -> dialog.dismiss());
-        dialog.show();
-    }
-
-    // --- DAILY CHECK-IN LOGIC ---
     private void showDailyCheckInDialog() {
         if (uid == null || uid.isEmpty()) return;
-
+        
         db.collection("users").document(uid).get()
             .addOnSuccessListener(documentSnapshot -> {
                 if (!documentSnapshot.exists()) return;
@@ -169,12 +87,12 @@ public class HomeFragment extends Fragment {
 
                 int streakToDisplay = 1;
                 boolean canClaim = true;
-
+                
                 if (todayDate.equals(lastDate)) {
                     streakToDisplay = currentStreak;
                     canClaim = false;
                 } else {
-                    streakToDisplay = currentStreak + 1;
+                    streakToDisplay = currentStreak + 1; 
                     if(streakToDisplay > 10) streakToDisplay = 1;
                 }
 
@@ -191,7 +109,7 @@ public class HomeFragment extends Fragment {
 
         TextView tvStreak = view.findViewById(R.id.tv_streak_status);
         Button btnClaim = view.findViewById(R.id.btn_claim_reward);
-        View btnClose = view.findViewById(R.id.btn_close_dialog);
+        View btnClose = view.findViewById(R.id.btn_close_dialog); 
 
         tvStreak.setText("Current Streak: Day " + currentDay);
 
@@ -205,15 +123,15 @@ public class HomeFragment extends Fragment {
             View dayView = view.findViewById(viewIds[i]);
             TextView lblDay = dayView.findViewById(R.id.lbl_day);
             TextView lblAmount = dayView.findViewById(R.id.lbl_amount);
-            View bgCircle = (View) dayView.findViewById(R.id.lbl_amount).getParent();
-
+            View bgCircle = (View) dayView.findViewById(R.id.lbl_amount).getParent(); 
+            
             lblDay.setText("Day " + dayNum);
             lblAmount.setText("₹" + DAILY_REWARDS[i]);
 
             if (dayNum < currentDay) {
-                dayView.setAlpha(0.5f);
+                dayView.setAlpha(0.5f); 
             } else if (dayNum == currentDay) {
-                bgCircle.requestLayout();
+                bgCircle.requestLayout(); 
                 lblDay.setTextColor(Color.parseColor("#1B5E20"));
                 lblDay.setTypeface(null, android.graphics.Typeface.BOLD);
             }
@@ -227,8 +145,8 @@ public class HomeFragment extends Fragment {
             int rewardAmount = DAILY_REWARDS[currentDay - 1];
             btnClaim.setText("CLAIM ₹" + rewardAmount);
             btnClaim.setBackgroundResource(R.drawable.bg_gold_3d);
-            btnClaim.setTextColor(Color.parseColor("#5D4037"));
-
+            btnClaim.setTextColor(Color.parseColor("#5D4037")); 
+            
             btnClaim.setOnClickListener(v -> {
                 btnClaim.setEnabled(false);
                 btnClaim.setText("Processing...");
@@ -236,6 +154,7 @@ public class HomeFragment extends Fragment {
                 claimReward(currentDay, rewardAmount, todayDate, dialog);
             });
         }
+
         btnClose.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
@@ -250,7 +169,6 @@ public class HomeFragment extends Fragment {
             if (serverLastDate != null && serverLastDate.equals(todayDate)) {
                 throw new FirebaseFirestoreException("Already Claimed!", FirebaseFirestoreException.Code.ABORTED);
             }
-
             Double currentBalance = snapshot.getDouble("balance");
             if (currentBalance == null) currentBalance = 0.0;
             double newBalance = currentBalance + amount;
@@ -265,6 +183,7 @@ public class HomeFragment extends Fragment {
             txData.put("type", "CREDIT");
             txData.put("timestamp", FieldValue.serverTimestamp());
             transaction.set(historyRef, txData);
+
             return null;
         }).addOnSuccessListener(aVoid -> {
             Toast.makeText(getContext(), "Claimed ₹" + amount + " successfully!", Toast.LENGTH_SHORT).show();
@@ -281,7 +200,7 @@ public class HomeFragment extends Fragment {
 
     private void setupBannerSlider() {
         List<Integer> bannerList = new ArrayList<>();
-        bannerList.add(R.drawable.banner_one);
+        bannerList.add(R.drawable.banner_one);   
         bannerList.add(R.drawable.banner_two);
         bannerList.add(R.drawable.banner_three);
         try {

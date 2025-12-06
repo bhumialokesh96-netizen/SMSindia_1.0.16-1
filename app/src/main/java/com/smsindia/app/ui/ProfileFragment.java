@@ -31,14 +31,12 @@ import java.util.Map;
 public class ProfileFragment extends Fragment {
 
     private TextView tvMobile, tvBalance, tvBankName, tvBankAc;
-    private ImageView imgProfile;
     private View layoutSavedBankView;
     private FirebaseFirestore db;
     private String uid;
     private double currentBalance = 0.0;
     private boolean hasBankDetails = false;
 
-    // Withdrawal Options
     private int selectedAmount = 0;
     private final int[] WITHDRAWAL_OPTIONS = {100, 200, 300, 500, 2000, 5000};
 
@@ -46,10 +44,8 @@ public class ProfileFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_profile, container, false);
 
-        // Initialize Views
         tvMobile = v.findViewById(R.id.tv_profile_mobile);
         tvBalance = v.findViewById(R.id.tv_profile_balance);
-        imgProfile = v.findViewById(R.id.img_profile);
         
         Button btnWithdraw = v.findViewById(R.id.btn_withdraw);
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
@@ -59,7 +55,6 @@ public class ProfileFragment extends Fragment {
         tvBankName = v.findViewById(R.id.tv_bank_name);
         tvBankAc = v.findViewById(R.id.tv_bank_ac);
 
-        // Initialize Firebase
         db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         uid = prefs.getString("mobile", "");
@@ -67,13 +62,9 @@ public class ProfileFragment extends Fragment {
         tvMobile.setText(uid);
         fetchUserData();
 
-        // --- CLICK LISTENERS ---
-
-        // 1. Bank & Withdraw
         btnAddBank.setOnClickListener(view -> showAddBankDialog());
         btnWithdraw.setOnClickListener(view -> requestWithdrawal());
 
-        // 2. History Page
         btnHistory.setOnClickListener(view -> {
             try {
                 Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
@@ -102,7 +93,7 @@ public class ProfileFragment extends Fragment {
                 Map<String, Object> bankMap = (Map<String, Object>) snapshot.get("bank_account");
                 if (bankMap != null) {
                     hasBankDetails = true;
-                    layoutSavedBankView.setVisibility(View.VISIBLE);
+                    if(layoutSavedBankView != null) layoutSavedBankView.setVisibility(View.VISIBLE);
                     tvBankName.setText((String) bankMap.get("bank_name"));
                     tvBankAc.setText("AC: " + bankMap.get("account_no"));
                 }
@@ -110,7 +101,6 @@ public class ProfileFragment extends Fragment {
         });
     }
 
-    // --- BANK DETAILS DIALOG ---
     private void showAddBankDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_add_bank, null);
@@ -127,11 +117,8 @@ public class ProfileFragment extends Fragment {
             String name = etName.getText().toString().trim();
             String ac = etAc.getText().toString().trim();
             String ifsc = etIfsc.getText().toString().trim();
-
-            if (name.isEmpty() || ac.isEmpty() || ifsc.isEmpty()) {
-                Toast.makeText(getContext(), "Please fill all fields", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            if (name.isEmpty() || ac.isEmpty() || ifsc.isEmpty()) return;
+            
             saveBankDetails(name, ac, ifsc);
             dialog.dismiss();
         });
@@ -149,7 +136,6 @@ public class ProfileFragment extends Fragment {
                 .addOnSuccessListener(a -> Toast.makeText(getContext(), "Bank details saved!", Toast.LENGTH_SHORT).show());
     }
 
-    // --- WITHDRAWAL LOGIC ---
     private void requestWithdrawal() {
         if (!hasBankDetails) {
             Toast.makeText(getContext(), "Please add bank details first", Toast.LENGTH_LONG).show();
@@ -165,9 +151,7 @@ public class ProfileFragment extends Fragment {
         builder.setView(view);
         AlertDialog dialog = builder.create();
 
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
+        if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
         GridLayout gridLayout = view.findViewById(R.id.grid_amounts);
         Button btnConfirm = view.findViewById(R.id.btn_confirm_withdraw);
@@ -177,31 +161,12 @@ public class ProfileFragment extends Fragment {
             View itemView = LayoutInflater.from(getContext()).inflate(R.layout.item_amount_box, gridLayout, false);
             TextView tvVal = itemView.findViewById(R.id.tv_amount_val);
             MaterialCardView card = itemView.findViewById(R.id.card_amount);
-
             tvVal.setText("₹" + amount);
-
             itemView.setOnClickListener(v -> {
                 selectedAmount = amount;
                 btnConfirm.setEnabled(true);
                 btnConfirm.setText("Withdraw ₹" + amount);
-                
-                btnConfirm.setBackgroundResource(R.drawable.bg_gold_3d);
-                btnConfirm.setTextColor(Color.parseColor("#5D4037")); 
-
-                for (int i = 0; i < gridLayout.getChildCount(); i++) {
-                    View child = gridLayout.getChildAt(i);
-                    MaterialCardView c = child.findViewById(R.id.card_amount);
-                    TextView t = child.findViewById(R.id.tv_amount_val);
-                    c.setCardBackgroundColor(Color.parseColor("#FFFFFF"));
-                    c.setStrokeColor(Color.parseColor("#E0E0E0"));
-                    t.setTextColor(Color.BLACK);
-                }
-
-                card.setCardBackgroundColor(Color.parseColor("#FFF8E1"));
-                card.setStrokeColor(Color.parseColor("#FFC107"));
-                tvVal.setTextColor(Color.parseColor("#FF8F00"));
             });
-
             gridLayout.addView(itemView);
         }
 
@@ -212,7 +177,6 @@ public class ProfileFragment extends Fragment {
                 processWithdrawal(selectedAmount, dialog);
             }
         });
-
         dialog.show();
     }
 
@@ -239,25 +203,7 @@ public class ProfileFragment extends Fragment {
 
         batch.commit().addOnSuccessListener(a -> {
             parentDialog.dismiss();
-            showSuccessPopup(); 
-        }).addOnFailureListener(e -> {
-            Toast.makeText(getContext(), "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Withdrawal Request Sent!", Toast.LENGTH_SHORT).show();
         });
-    }
-
-    private void showSuccessPopup() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_success, null);
-        builder.setView(view);
-        AlertDialog dialog = builder.create();
-        
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        }
-
-        Button btnOk = view.findViewById(R.id.btn_close_success);
-        btnOk.setOnClickListener(v -> dialog.dismiss());
-
-        dialog.show();
     }
 }

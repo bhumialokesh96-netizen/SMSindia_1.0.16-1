@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -8,9 +8,10 @@
 
     <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:orientation="vertical">
 
-                <!-- HEADER: Dark Green -->
+        <!-- HEADER: Dark Green -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -20,15 +21,12 @@
             android:paddingVertical="30dp"
             android:paddingBottom="50dp">
 
-            <!-- Profile Image -->
             <androidx.cardview.widget.CardView
                 android:layout_width="90dp"
                 android:layout_height="90dp"
                 app:cardCornerRadius="45dp"
                 app:cardElevation="0dp"
-                app:cardBackgroundColor="#CCCCCC"> <!-- Added Grey Background to Card -->
-
-                <!-- CHANGED: Used a System Icon to ensure it shows -->
+                app:cardBackgroundColor="#CCCCCC">
                 <ImageView
                     android:id="@+id/img_profile"
                     android:layout_width="match_parent"
@@ -36,11 +34,7 @@
                     android:src="@android:drawable/sym_def_app_icon" 
                     android:scaleType="centerInside"
                     android:padding="15dp"/>
-
             </androidx.cardview.widget.CardView>
-            
-            <!-- ❌ DELETED THE RING VIEW TO FIX THE WHITE BLOCKER -->
-            <!-- I removed the <View ... /> code that was here -->
 
             <TextView
                 android:id="@+id/tv_profile_mobile"
@@ -54,7 +48,7 @@
         </LinearLayout>
 
 
-        <!-- BALANCE CARD (Overlapping) -->
+        <!-- BALANCE CARD -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -119,7 +113,6 @@
                 android:textSize="16sp"
                 android:layout_marginBottom="8dp"/>
 
-            <!-- Saved Bank Card (Gold Border) -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/layout_saved_bank"
                 android:layout_width="match_parent"
@@ -164,7 +157,6 @@
                 android:textStyle="bold"
                 android:layout_marginTop="12dp"/>
 
-            <!-- HISTORY BUTTON -->
             <Button
                 android:id="@+id/btn_withdraw_history"
                 android:layout_width="match_parent"
@@ -180,4 +172,4 @@
 
         </LinearLayout>
     </LinearLayout>
-</ScrollView>
+</androidx.core.widget.NestedScrollView>
