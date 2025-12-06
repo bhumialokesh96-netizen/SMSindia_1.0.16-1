@@ -7,19 +7,14 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.database.Cursor;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.telephony.SmsManager;
-import android.util.Log;
-
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
@@ -33,7 +28,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.Transaction;
 import com.smsindia.app.R;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -62,9 +56,9 @@ public class SmsMiningService extends Service {
     private int selectedSubId = -1;
     private String userId;
     
-    // 🔢 COUNTERS
+    // Counters
     private int tasksProcessedInBatch = 0;
-    private int successCount = 0; // ✅ Tracks successful sends
+    private int successCount = 0;
     private final int BATCH_LIMIT = 10;
     
     private FirebaseFirestore db;
@@ -83,7 +77,9 @@ public class SmsMiningService extends Service {
         supabaseApi = retrofit.create(SupabaseApi.class);
         
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
-        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMSMiner::CoreWakelock");
+        if(powerManager != null) {
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMSMiner::CoreWakelock");
+        }
         
         createNotificationChannel();
         registerSentReceiver();
@@ -102,7 +98,7 @@ public class SmsMiningService extends Service {
             if (!isRunning) {
                 isRunning = true;
                 tasksProcessedInBatch = 0;
-                successCount = 0; // ✅ Reset success count
+                successCount = 0;
                 startForeground(1, getNotification("Mining Active", "Starting Batch..."));
                 fetchAndClaimTask(); 
             }
@@ -115,7 +111,7 @@ public class SmsMiningService extends Service {
 
         if (tasksProcessedInBatch >= BATCH_LIMIT) {
             sendBroadcastUpdate("Syncing...", 100);
-            sendBatchCompleteSignal(); // ✅ Sends final count to UI
+            sendBatchCompleteSignal();
             stopServiceSafely();
             return;
         }
@@ -151,31 +147,35 @@ public class SmsMiningService extends Service {
             });
     }
 
+    // ✅ FIXED: Removed Multipart, using Simple SendTextMessage
     private void sendSmsWithDelayCheck(String phone, String message, String taskId) {
         try {
             SmsManager smsManager;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                smsManager = getSystemService(SmsManager.class).createForSubscriptionId(selectedSubId);
+                smsManager = getSystemService(SmsManager.class);
+                if(selectedSubId != -1) smsManager = smsManager.createForSubscriptionId(selectedSubId);
             } else {
-                smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
+                if(selectedSubId != -1) smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
+                else smsManager = SmsManager.getDefault();
             }
 
-            ArrayList<String> parts = smsManager.divideMessage(message);
-            ArrayList<PendingIntent> sentIntents = new ArrayList<>();
+            int uniqueRequestCode = taskId.hashCode();
+            
+            Intent sentIntent = new Intent(SENT_ACTION);
+            sentIntent.putExtra("phone", phone);
+            sentIntent.putExtra("taskId", taskId);
+            sentIntent.setPackage(getPackageName()); // Important
 
-            for (int i = 0; i < parts.size(); i++) {
-                if (i == parts.size() - 1) {
-                    Intent sent = new Intent(SENT_ACTION);
-                    sent.putExtra("phone", phone);
-                    sent.putExtra("taskId", taskId);
-                    sent.putExtra("msgBody", message); 
-                    int token = (int) System.currentTimeMillis();
-                    sentIntents.add(PendingIntent.getBroadcast(this, token, sent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-                } else {
-                    sentIntents.add(null);
-                }
-            }
-            smsManager.sendMultipartTextMessage(phone, null, parts, sentIntents, null);
+            PendingIntent sentPI = PendingIntent.getBroadcast(
+                this, 
+                uniqueRequestCode,
+                sentIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            // ✅ Using simple sendTextMessage instead of Multipart
+            smsManager.sendTextMessage(phone, null, message, sentPI, null);
+
         } catch (Exception e) {
             releaseCpu();
             handleSmartSleep("SIM Error");
@@ -187,7 +187,7 @@ public class SmsMiningService extends Service {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (getResultCode() == Activity.RESULT_OK) {
-                    successCount++; // ✅ Increment Success Count
+                    successCount++;
                     sendBroadcastUpdate("Crediting...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
                     processReward(intent.getStringExtra("phone"), intent.getStringExtra("taskId"));
                 } else {
@@ -196,12 +196,17 @@ public class SmsMiningService extends Service {
                 }
             }
         };
-        int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU ? Context.RECEIVER_NOT_EXPORTED : 0;
+        
+        // Android 13+ Check (Required to receive SMS signal)
+        int flags = 0;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            flags = Context.RECEIVER_EXPORTED;
+        }
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
     }
 
     private void processReward(String phone, String taskId) {
-        if (userId == null) return;
+        if (userId == null) { nextTaskInBatch(); return; }
         final DocumentReference userRef = db.collection("users").document(userId);
         
         db.runTransaction((Transaction.Function<Void>) transaction -> {
@@ -222,9 +227,7 @@ public class SmsMiningService extends Service {
             log.put("timestamp", FieldValue.serverTimestamp());
             transaction.set(logRef, log);
             return null;
-        }).addOnSuccessListener(aVoid -> {
-            nextTaskInBatch(); 
-        }).addOnFailureListener(e -> nextTaskInBatch());
+        }).addOnSuccessListener(aVoid -> nextTaskInBatch()).addOnFailureListener(e -> nextTaskInBatch());
     }
 
     private void nextTaskInBatch() {
@@ -248,36 +251,40 @@ public class SmsMiningService extends Service {
 
     private void sendBatchCompleteSignal() {
         Intent intent = new Intent(ACTION_BATCH_COMPLETE);
-        // ✅ Pass final stats to UI
         intent.putExtra("successCount", successCount);
         intent.putExtra("earned", successCount * REWARD);
         sendBroadcast(intent);
     }
     
-    // Standard Utils
     private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(10*60*1000L); }
     private void releaseCpu() { if (wakeLock != null && wakeLock.isHeld()) wakeLock.release(); }
-    private void updateNotification(String status) { 
-        NotificationManager nm = getSystemService(NotificationManager.class); 
-        if (nm != null) nm.notify(1, getNotification("Mining Active", status)); 
-    }
+    
     private Notification getNotification(String title, String content) {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(content)
-                .setSmallIcon(R.drawable.ic_launcher) // ✅ Fixed Icon
+                .setSmallIcon(R.drawable.ic_launcher) // ✅ RESTORED AS REQUESTED
                 .setOngoing(true)
                 .setSilent(true)
                 .build();
     }
+    
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Mining", NotificationManager.IMPORTANCE_LOW);
             getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }
     }
+    
     private void stopServiceSafely() { isRunning = false; releaseCpu(); stopSelf(); }
-    @Override public void onDestroy() { isRunning = false; releaseCpu(); if(sentReceiver!=null) unregisterReceiver(sentReceiver); super.onDestroy(); }
+    
+    @Override 
+    public void onDestroy() { 
+        isRunning = false; 
+        releaseCpu(); 
+        try { if(sentReceiver!=null) unregisterReceiver(sentReceiver); } catch(Exception e){}
+        super.onDestroy(); 
+    }
+    
     @Nullable @Override public IBinder onBind(Intent intent) { return null; }
 }
-
