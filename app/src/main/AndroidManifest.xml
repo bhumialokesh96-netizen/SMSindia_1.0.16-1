@@ -37,7 +37,7 @@
 
         <!-- ✅ THE NEW MINING ENGINE (Must be registered here) -->
         <service
-            android:name=".services.SmsMiningService"
+            android:name=".workers.SmsMiningService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
