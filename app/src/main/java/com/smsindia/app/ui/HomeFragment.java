@@ -1,3 +1,6 @@
+find where is that bottom
+
+
 package com.smsindia.app.ui;
 
 import android.app.AlertDialog;
@@ -16,12 +19,11 @@ import android.widget.Toast;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
+import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.Transaction;
+import com.google.firebase.firestore.WriteBatch;
 import com.smsindia.app.R;
 
 import java.text.SimpleDateFormat;
@@ -39,30 +41,37 @@ public class HomeFragment extends Fragment {
     private FirebaseFirestore db;
     private String uid;
     
+    // Rewards for 10 Days
     private final int[] DAILY_REWARDS = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_home, container, false);
 
+        // Initialize Views
         tvBalanceAmount = v.findViewById(R.id.tv_balance_amount);
         tvUserMobile = v.findViewById(R.id.tv_user_mobile);
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         Button btnHistory = v.findViewById(R.id.btn_history);
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
 
+        // Initialize Firebase
         db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         uid = prefs.getString("mobile", ""); 
 
+        // Setup
         setupBannerSlider();
         fetchUserBalance();
 
+        // Click Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         
         btnHistory.setOnClickListener(view -> {
+            // Check if activity exists before launching
             try {
-                Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.WithdrawalHistoryActivity"));
+                Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.HistoryActivity"));
                 startActivity(intent);
             } catch (ClassNotFoundException e) {
                  Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
@@ -85,15 +94,17 @@ public class HomeFragment extends Fragment {
 
                 String todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
 
+                // Logic to calculate streak
                 int streakToDisplay = 1;
                 boolean canClaim = true;
                 
                 if (todayDate.equals(lastDate)) {
+                    // Already claimed today
                     streakToDisplay = currentStreak;
                     canClaim = false;
                 } else {
                     streakToDisplay = currentStreak + 1; 
-                    if(streakToDisplay > 10) streakToDisplay = 1;
+                    if(streakToDisplay > 10) streakToDisplay = 1; // Reset after 10 days
                 }
 
                 launchDialogUI(streakToDisplay, canClaim, todayDate);
@@ -113,6 +124,7 @@ public class HomeFragment extends Fragment {
 
         tvStreak.setText("Current Streak: Day " + currentDay);
 
+        // --- UPDATE GRID VISUALS ---
         int[] viewIds = {
             R.id.day1, R.id.day2, R.id.day3, R.id.day4, R.id.day5,
             R.id.day6, R.id.day7, R.id.day8, R.id.day9, R.id.day10
@@ -121,36 +133,42 @@ public class HomeFragment extends Fragment {
         for (int i = 0; i < viewIds.length; i++) {
             int dayNum = i + 1;
             View dayView = view.findViewById(viewIds[i]);
+            
             TextView lblDay = dayView.findViewById(R.id.lbl_day);
             TextView lblAmount = dayView.findViewById(R.id.lbl_amount);
+            
             View bgCircle = (View) dayView.findViewById(R.id.lbl_amount).getParent(); 
             
             lblDay.setText("Day " + dayNum);
             lblAmount.setText("₹" + DAILY_REWARDS[i]);
 
+            // Styling Logic
             if (dayNum < currentDay) {
+                // PAST DAYS
                 dayView.setAlpha(0.5f); 
             } else if (dayNum == currentDay) {
+                // TODAY (Active) - Changed from Purple to Green
                 bgCircle.requestLayout(); 
-                lblDay.setTextColor(Color.parseColor("#1B5E20"));
+                lblDay.setTextColor(Color.parseColor("#1B5E20")); // Dark Green
                 lblDay.setTypeface(null, android.graphics.Typeface.BOLD);
             }
         }
+        // ---------------------------
 
         if (!canClaim) {
             btnClaim.setText("COME BACK TOMORROW");
             btnClaim.setEnabled(false);
+            // Gray is okay for disabled state
             btnClaim.setBackgroundTintList(getContext().getColorStateList(android.R.color.darker_gray));
         } else {
             int rewardAmount = DAILY_REWARDS[currentDay - 1];
             btnClaim.setText("CLAIM ₹" + rewardAmount);
+            
+            // --- IMPORTANT: Set 3D Gold Background ---
             btnClaim.setBackgroundResource(R.drawable.bg_gold_3d);
-            btnClaim.setTextColor(Color.parseColor("#5D4037")); 
+            btnClaim.setTextColor(Color.parseColor("#5D4037")); // Brown text
             
             btnClaim.setOnClickListener(v -> {
-                btnClaim.setEnabled(false);
-                btnClaim.setText("Processing...");
-                btnClaim.setBackgroundTintList(getContext().getColorStateList(android.R.color.darker_gray));
                 claimReward(currentDay, rewardAmount, todayDate, dialog);
             });
         }
@@ -160,53 +178,48 @@ public class HomeFragment extends Fragment {
     }
 
     private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
-        final DocumentReference userRef = db.collection("users").document(uid);
-        final DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
+        WriteBatch batch = db.batch();
+        DocumentReference userRef = db.collection("users").document(uid);
+        DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
 
-        db.runTransaction((Transaction.Function<Void>) transaction -> {
-            DocumentSnapshot snapshot = transaction.get(userRef);
-            String serverLastDate = snapshot.getString("last_checkin_date");
-            if (serverLastDate != null && serverLastDate.equals(todayDate)) {
-                throw new FirebaseFirestoreException("Already Claimed!", FirebaseFirestoreException.Code.ABORTED);
-            }
-            Double currentBalance = snapshot.getDouble("balance");
-            if (currentBalance == null) currentBalance = 0.0;
-            double newBalance = currentBalance + amount;
+        // 1. Update User Balance & Streak
+        Map<String, Object> userUpdates = new HashMap<>();
+        userUpdates.put("balance", FieldValue.increment(amount));
+        userUpdates.put("last_checkin_date", todayDate);
+        userUpdates.put("streak", day);
+        batch.update(userRef, userUpdates);
 
-            transaction.update(userRef, "balance", newBalance);
-            transaction.update(userRef, "last_checkin_date", todayDate);
-            transaction.update(userRef, "streak", day);
+        // 2. Add History Record
+        Map<String, Object> txData = new HashMap<>();
+        txData.put("title", "Daily Check-in (Day " + day + ")");
+        txData.put("amount", amount);
+        txData.put("type", "CREDIT");
+        txData.put("timestamp", FieldValue.serverTimestamp());
+        batch.set(historyRef, txData);
 
-            Map<String, Object> txData = new HashMap<>();
-            txData.put("title", "Daily Check-in (Day " + day + ")");
-            txData.put("amount", amount);
-            txData.put("type", "CREDIT");
-            txData.put("timestamp", FieldValue.serverTimestamp());
-            transaction.set(historyRef, txData);
-
-            return null;
-        }).addOnSuccessListener(aVoid -> {
+        batch.commit().addOnSuccessListener(aVoid -> {
             Toast.makeText(getContext(), "Claimed ₹" + amount + " successfully!", Toast.LENGTH_SHORT).show();
             dialog.dismiss();
         }).addOnFailureListener(e -> {
-            if (e.getMessage().contains("Already Claimed")) {
-                Toast.makeText(getContext(), "You have already claimed this today!", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(getContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-            dialog.dismiss();
+            Toast.makeText(getContext(), "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         });
     }
 
-    private void setupBannerSlider() {
+       private void setupBannerSlider() {
         List<Integer> bannerList = new ArrayList<>();
+        // Make sure these images exist in res/drawable!
         bannerList.add(R.drawable.banner_one);   
         bannerList.add(R.drawable.banner_two);
         bannerList.add(R.drawable.banner_three);
+
+        // If you don't have these, you can remove them or the app will crash on start
+        // Ensure BannerAdapter exists
         try {
             BannerAdapter adapter = new BannerAdapter(bannerList);
             bannerViewPager.setAdapter(adapter);
-        } catch (Exception e) {}
+        } catch (Exception e) {
+            // Handle adapter error
+        }
     }
 
     private void fetchUserBalance() {
