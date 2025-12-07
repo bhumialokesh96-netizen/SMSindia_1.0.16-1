@@ -47,7 +47,11 @@ public class SmsMiningService extends Service {
 
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
     public static final String ACTION_BATCH_COMPLETE = "com.smsindia.BATCH_COMPLETE";
+    
+    // LAYER 1 & 2 ACTIONS
     private static final String SENT_ACTION = "SMS_SENT_CHECK";
+    private static final String DELIVERED_ACTION = "SMS_DELIVERED_CHECK";
+    
     private static final double REWARD = 0.16;
     private static final String CHANNEL_ID = "SMS_MINING_CHANNEL";
 
@@ -63,7 +67,11 @@ public class SmsMiningService extends Service {
     
     private FirebaseFirestore db;
     private SupabaseApi supabaseApi;
+    
+    // Receivers
     private BroadcastReceiver sentReceiver;
+    private BroadcastReceiver deliveredReceiver;
+    
     private PowerManager.WakeLock wakeLock;
     
     private long currentRetryDelay = 1000;
@@ -82,7 +90,7 @@ public class SmsMiningService extends Service {
         }
         
         createNotificationChannel();
-        registerSentReceiver();
+        registerReceivers(); // Updated method name to reflect both receivers
     }
 
     @Override
@@ -147,7 +155,6 @@ public class SmsMiningService extends Service {
             });
     }
 
-    // ✅ FIXED: Removed Multipart, using Simple SendTextMessage
     private void sendSmsWithDelayCheck(String phone, String message, String taskId) {
         try {
             SmsManager smsManager;
@@ -161,10 +168,11 @@ public class SmsMiningService extends Service {
 
             int uniqueRequestCode = taskId.hashCode();
             
+            // LAYER 1: SENT INTENT
             Intent sentIntent = new Intent(SENT_ACTION);
             sentIntent.putExtra("phone", phone);
             sentIntent.putExtra("taskId", taskId);
-            sentIntent.setPackage(getPackageName()); // Important
+            sentIntent.setPackage(getPackageName());
 
             PendingIntent sentPI = PendingIntent.getBroadcast(
                 this, 
@@ -173,8 +181,21 @@ public class SmsMiningService extends Service {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            // ✅ Using simple sendTextMessage instead of Multipart
-            smsManager.sendTextMessage(phone, null, message, sentPI, null);
+            // LAYER 2: DELIVERY REPORT INTENT (Added)
+            Intent deliveryIntent = new Intent(DELIVERED_ACTION);
+            deliveryIntent.putExtra("phone", phone);
+            deliveryIntent.putExtra("taskId", taskId);
+            deliveryIntent.setPackage(getPackageName());
+
+            PendingIntent deliveryPI = PendingIntent.getBroadcast(
+                this, 
+                uniqueRequestCode,
+                deliveryIntent, 
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            // Send with BOTH Intent checks
+            smsManager.sendTextMessage(phone, null, message, sentPI, deliveryPI);
 
         } catch (Exception e) {
             releaseCpu();
@@ -182,30 +203,72 @@ public class SmsMiningService extends Service {
         }
     }
 
-    private void registerSentReceiver() {
+    private void registerReceivers() {
+        // LAYER 1: DID THE SMS LEAVE THE PHONE?
         sentReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                String taskId = intent.getStringExtra("taskId");
+                String phone = intent.getStringExtra("phone");
+                
+                switch (getResultCode()) {
+                    case Activity.RESULT_OK:
+                        // ✅ PASSED LAYER 1: Sent to network
+                        // We credit here to allow fast mining
+                        successCount++;
+                        sendBroadcastUpdate("Sent! Waiting DLR...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
+                        processReward(phone, taskId, "SENT_WAITING_DLR"); 
+                        break;
+                        
+                    case SmsManager.RESULT_ERROR_NO_SERVICE:
+                        logFailure(taskId, "NO_SERVICE");
+                        handleSmartSleep("No Signal");
+                        releaseCpu(); // Don't forget to release if not processing reward
+                        break;
+                        
+                    case SmsManager.RESULT_ERROR_RADIO_OFF:
+                        logFailure(taskId, "RADIO_OFF");
+                        handleSmartSleep("Airplane Mode");
+                        releaseCpu();
+                        break;
+                        
+                    default:
+                        logFailure(taskId, "GENERIC_FAIL_" + getResultCode());
+                        nextTaskInBatch(); // Skip and try next
+                        releaseCpu();
+                        break;
+                }
+            }
+        };
+
+        // LAYER 2: DID THE CARRIER CONFIRM DELIVERY?
+        deliveredReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String taskId = intent.getStringExtra("taskId");
                 if (getResultCode() == Activity.RESULT_OK) {
-                    successCount++;
-                    sendBroadcastUpdate("Crediting...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
-                    processReward(intent.getStringExtra("phone"), intent.getStringExtra("taskId"));
+                    // ✅ PASSED LAYER 2: Confirmed Delivered
+                    // Update Database only (Reward already given)
+                    updateTaskStatus(taskId, "DELIVERED_CONFIRMED");
                 } else {
-                    releaseCpu();
-                    nextTaskInBatch();
+                    // ❌ FAILED LAYER 2
+                    updateTaskStatus(taskId, "DELIVERY_FAILED");
                 }
             }
         };
         
-        // Android 13+ Check (Required to receive SMS signal)
+        // Android 13+ Check
         int flags = 0;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             flags = Context.RECEIVER_EXPORTED;
         }
+        
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
+        registerReceiver(deliveredReceiver, new IntentFilter(DELIVERED_ACTION), flags);
     }
 
-    private void processReward(String phone, String taskId) {
+    // Updated to accept 'status' (Layer 3)
+    private void processReward(String phone, String taskId, String status) {
         if (userId == null) { nextTaskInBatch(); return; }
         final DocumentReference userRef = db.collection("users").document(userId);
         
@@ -222,12 +285,25 @@ public class SmsMiningService extends Service {
             DocumentReference logRef = userRef.collection("delivery_logs").document(taskId);
             Map<String, Object> log = new HashMap<>();
             log.put("phone", phone);
-            log.put("status", "SENT_OK");
+            log.put("status", status); // "SENT_WAITING_DLR"
             log.put("amount", REWARD);
             log.put("timestamp", FieldValue.serverTimestamp());
             transaction.set(logRef, log);
             return null;
         }).addOnSuccessListener(aVoid -> nextTaskInBatch()).addOnFailureListener(e -> nextTaskInBatch());
+    }
+
+    // Helper for Layer 2 Database Update (Async)
+    private void updateTaskStatus(String taskId, String newStatus) {
+        if(userId == null || taskId == null) return;
+        db.collection("users").document(userId)
+          .collection("delivery_logs").document(taskId)
+          .update("status", newStatus)
+          .addOnFailureListener(e -> System.out.println("Status Update Failed: " + e.getMessage()));
+    }
+    
+    private void logFailure(String taskId, String reason) {
+        System.out.println("Task Failed " + taskId + ": " + reason);
     }
 
     private void nextTaskInBatch() {
@@ -263,7 +339,7 @@ public class SmsMiningService extends Service {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
                 .setContentText(content)
-                .setSmallIcon(R.drawable.ic_launcher) // ✅ RESTORED AS REQUESTED
+                .setSmallIcon(R.drawable.ic_launcher)
                 .setOngoing(true)
                 .setSilent(true)
                 .build();
@@ -282,7 +358,10 @@ public class SmsMiningService extends Service {
     public void onDestroy() { 
         isRunning = false; 
         releaseCpu(); 
-        try { if(sentReceiver!=null) unregisterReceiver(sentReceiver); } catch(Exception e){}
+        try { 
+            if(sentReceiver!=null) unregisterReceiver(sentReceiver); 
+            if(deliveredReceiver!=null) unregisterReceiver(deliveredReceiver);
+        } catch(Exception e){}
         super.onDestroy(); 
     }
     
