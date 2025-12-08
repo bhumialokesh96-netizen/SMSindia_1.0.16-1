@@ -15,6 +15,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.telephony.SmsManager;
+import android.util.Log;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
@@ -48,7 +49,6 @@ public class SmsMiningService extends Service {
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
     public static final String ACTION_BATCH_COMPLETE = "com.smsindia.BATCH_COMPLETE";
     
-    // LAYER 1 & 2 ACTIONS
     private static final String SENT_ACTION = "SMS_SENT_CHECK";
     private static final String DELIVERED_ACTION = "SMS_DELIVERED_CHECK";
     
@@ -60,18 +60,18 @@ public class SmsMiningService extends Service {
     private int selectedSubId = -1;
     private String userId;
     
-    // Counters
+    // --- LOGIC VARS ---
     private int tasksProcessedInBatch = 0;
     private int successCount = 0;
+    private int consecutiveFailures = 0; 
     private final int BATCH_LIMIT = 10;
+    private final int MAX_CONSECUTIVE_FAILURES = 3; 
     
     private FirebaseFirestore db;
     private SupabaseApi supabaseApi;
     
-    // Receivers
     private BroadcastReceiver sentReceiver;
     private BroadcastReceiver deliveredReceiver;
-    
     private PowerManager.WakeLock wakeLock;
     
     private long currentRetryDelay = 1000;
@@ -88,16 +88,15 @@ public class SmsMiningService extends Service {
         if(powerManager != null) {
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMSMiner::CoreWakelock");
         }
-        
         createNotificationChannel();
-        registerReceivers(); // Updated method name to reflect both receivers
+        registerReceivers();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
             if ("STOP_SERVICE".equals(intent.getAction())) {
-                stopServiceSafely();
+                stopServiceSafely("User Stopped");
                 return START_NOT_STICKY;
             }
             selectedSubId = intent.getIntExtra("subId", -1);
@@ -107,6 +106,7 @@ public class SmsMiningService extends Service {
                 isRunning = true;
                 tasksProcessedInBatch = 0;
                 successCount = 0;
+                consecutiveFailures = 0;
                 startForeground(1, getNotification("Mining Active", "Starting Batch..."));
                 fetchAndClaimTask(); 
             }
@@ -117,10 +117,16 @@ public class SmsMiningService extends Service {
     private void fetchAndClaimTask() {
         if (!isRunning) return;
 
+        // Auto-Stop Check
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            stopServiceSafely("Paused: Quota Exceeded");
+            return;
+        }
+
         if (tasksProcessedInBatch >= BATCH_LIMIT) {
             sendBroadcastUpdate("Syncing...", 100);
             sendBatchCompleteSignal();
-            stopServiceSafely();
+            stopServiceSafely("Batch Complete");
             return;
         }
 
@@ -128,6 +134,7 @@ public class SmsMiningService extends Service {
         int progressPercent = (tasksProcessedInBatch * 100) / BATCH_LIMIT;
         sendBroadcastUpdate("Task " + (tasksProcessedInBatch + 1) + "/10", progressPercent);
 
+        // RPC Call: Marks as 'processing' but DOES NOT delete
         supabaseApi.getTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY)
             .enqueue(new Callback<List<TaskModel>>() {
                 @Override
@@ -137,8 +144,6 @@ public class SmsMiningService extends Service {
                         if (processedTaskIds.contains(task.id)) { handleSmartSleep("Duplicate"); return; }
                         
                         processedTaskIds.add(task.id);
-                        if(processedTaskIds.size() > 50) processedTaskIds.clear();
-
                         currentRetryDelay = 1000; 
                         sendSmsWithDelayCheck(task.phone, task.message, task.id);
                     } else {
@@ -168,43 +173,28 @@ public class SmsMiningService extends Service {
 
             int uniqueRequestCode = taskId.hashCode();
             
-            // LAYER 1: SENT INTENT
             Intent sentIntent = new Intent(SENT_ACTION);
             sentIntent.putExtra("phone", phone);
             sentIntent.putExtra("taskId", taskId);
             sentIntent.setPackage(getPackageName());
+            PendingIntent sentPI = PendingIntent.getBroadcast(this, uniqueRequestCode, sentIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            PendingIntent sentPI = PendingIntent.getBroadcast(
-                this, 
-                uniqueRequestCode,
-                sentIntent, 
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
-
-            // LAYER 2: DELIVERY REPORT INTENT (Added)
             Intent deliveryIntent = new Intent(DELIVERED_ACTION);
-            deliveryIntent.putExtra("phone", phone);
             deliveryIntent.putExtra("taskId", taskId);
             deliveryIntent.setPackage(getPackageName());
+            PendingIntent deliveryPI = PendingIntent.getBroadcast(this, uniqueRequestCode, deliveryIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            PendingIntent deliveryPI = PendingIntent.getBroadcast(
-                this, 
-                uniqueRequestCode,
-                deliveryIntent, 
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
-            );
-
-            // Send with BOTH Intent checks
             smsManager.sendTextMessage(phone, null, message, sentPI, deliveryPI);
 
         } catch (Exception e) {
+            consecutiveFailures++;
+            returnTaskToQueue(taskId); // Release on crash
             releaseCpu();
             handleSmartSleep("SIM Error");
         }
     }
 
     private void registerReceivers() {
-        // LAYER 1: DID THE SMS LEAVE THE PHONE?
         sentReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -213,103 +203,116 @@ public class SmsMiningService extends Service {
                 
                 switch (getResultCode()) {
                     case Activity.RESULT_OK:
-                        // ✅ PASSED LAYER 1: Sent to network
-                        // We credit here to allow fast mining
+                        // ✅ SUCCESS
+                        consecutiveFailures = 0; 
                         successCount++;
-                        sendBroadcastUpdate("Sent! Waiting DLR...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
+                        sendBroadcastUpdate("Sent! Processing...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
+                        
+                        // 1. Give User Money
                         processReward(phone, taskId, "SENT_WAITING_DLR"); 
+                        
+                        // 2. Mark Supabase as 'sent' (DO NOT DELETE)
+                        markTaskAsSent(taskId);
                         break;
                         
                     case SmsManager.RESULT_ERROR_NO_SERVICE:
-                        logFailure(taskId, "NO_SERVICE");
-                        handleSmartSleep("No Signal");
-                        releaseCpu(); // Don't forget to release if not processing reward
-                        break;
-                        
-                    case SmsManager.RESULT_ERROR_RADIO_OFF:
-                        logFailure(taskId, "RADIO_OFF");
-                        handleSmartSleep("Airplane Mode");
-                        releaseCpu();
-                        break;
-                        
+                    case SmsManager.RESULT_ERROR_GENERIC_FAILURE:
                     default:
-                        logFailure(taskId, "GENERIC_FAIL_" + getResultCode());
-                        nextTaskInBatch(); // Skip and try next
+                        // ❌ FAILURE
+                        consecutiveFailures++;
+                        Log.e("SMS_MINER", "SMS Failed. Count: " + consecutiveFailures);
+                        
+                        // 1. Return to 'pending' so others can try
+                        returnTaskToQueue(taskId);
+                        
+                        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                            stopServiceSafely("Stopped: SMS Limit Reached?");
+                        } else {
+                            handleSmartSleep("Send Failed");
+                        }
                         releaseCpu();
                         break;
                 }
             }
         };
 
-        // LAYER 2: DID THE CARRIER CONFIRM DELIVERY?
         deliveredReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                String taskId = intent.getStringExtra("taskId");
                 if (getResultCode() == Activity.RESULT_OK) {
-                    // ✅ PASSED LAYER 2: Confirmed Delivered
-                    // Update Database only (Reward already given)
-                    updateTaskStatus(taskId, "DELIVERED_CONFIRMED");
-                } else {
-                    // ❌ FAILED LAYER 2
-                    updateTaskStatus(taskId, "DELIVERY_FAILED");
+                    updateTaskStatus(intent.getStringExtra("taskId"), "DELIVERED_CONFIRMED");
                 }
             }
         };
         
-        // Android 13+ Check
-        int flags = 0;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            flags = Context.RECEIVER_EXPORTED;
-        }
-        
+        int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ? Context.RECEIVER_EXPORTED : 0;
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
         registerReceiver(deliveredReceiver, new IntentFilter(DELIVERED_ACTION), flags);
     }
 
-    // Updated to accept 'status' (Layer 3)
+    // --- SUPABASE HELPERS (UPDATED) ---
+
+    // SUCCESS: Mark as 'sent'
+    private void markTaskAsSent(String taskId) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "sent");
+        
+        supabaseApi.updateTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + taskId, body)
+            .enqueue(new Callback<Void>() {
+                @Override public void onResponse(Call<Void> c, Response<Void> r) {}
+                @Override public void onFailure(Call<Void> c, Throwable t) {}
+            });
+    }
+
+    // FAILURE: Reset to 'pending'
+    private void returnTaskToQueue(String taskId) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("status", "pending");
+        body.put("locked_at", null); // Clear lock time
+        
+        supabaseApi.updateTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + taskId, body)
+            .enqueue(new Callback<Void>() {
+                @Override public void onResponse(Call<Void> c, Response<Void> r) {}
+                @Override public void onFailure(Call<Void> c, Throwable t) {}
+            });
+    }
+
+    // --- GENERIC HELPERS ---
+
     private void processReward(String phone, String taskId, String status) {
         if (userId == null) { nextTaskInBatch(); return; }
         final DocumentReference userRef = db.collection("users").document(userId);
         
         db.runTransaction((Transaction.Function<Void>) transaction -> {
             DocumentSnapshot userSnap = transaction.get(userRef);
-            if (!userSnap.exists()) { return null; }
+            if (!userSnap.exists()) return null;
             
-            Double currentBalance = userSnap.getDouble("balance");
-            if (currentBalance == null) currentBalance = 0.0;
-            
-            transaction.update(userRef, "balance", currentBalance + REWARD);
+            Double bal = userSnap.getDouble("balance");
+            transaction.update(userRef, "balance", (bal==null?0.0:bal) + REWARD);
             transaction.update(userRef, "sms_count", FieldValue.increment(1));
             
-            DocumentReference logRef = userRef.collection("delivery_logs").document(taskId);
             Map<String, Object> log = new HashMap<>();
             log.put("phone", phone);
-            log.put("status", status); // "SENT_WAITING_DLR"
+            log.put("status", status);
             log.put("amount", REWARD);
             log.put("timestamp", FieldValue.serverTimestamp());
-            transaction.set(logRef, log);
+            transaction.set(userRef.collection("delivery_logs").document(taskId), log);
             return null;
-        }).addOnSuccessListener(aVoid -> nextTaskInBatch()).addOnFailureListener(e -> nextTaskInBatch());
+        }).addOnCompleteListener(t -> nextTaskInBatch());
     }
 
-    // Helper for Layer 2 Database Update (Async)
     private void updateTaskStatus(String taskId, String newStatus) {
         if(userId == null || taskId == null) return;
-        db.collection("users").document(userId)
-          .collection("delivery_logs").document(taskId)
-          .update("status", newStatus)
-          .addOnFailureListener(e -> System.out.println("Status Update Failed: " + e.getMessage()));
-    }
-    
-    private void logFailure(String taskId, String reason) {
-        System.out.println("Task Failed " + taskId + ": " + reason);
+        db.collection("users").document(userId).collection("delivery_logs").document(taskId)
+          .update("status", newStatus);
     }
 
     private void nextTaskInBatch() {
         tasksProcessedInBatch++; 
         releaseCpu();
-        new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, 1500);
+        if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) {
+            new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, 1500);
+        }
     }
 
     private void handleSmartSleep(String reason) {
@@ -352,7 +355,21 @@ public class SmsMiningService extends Service {
         }
     }
     
-    private void stopServiceSafely() { isRunning = false; releaseCpu(); stopSelf(); }
+    private void stopServiceSafely(String reason) {
+        isRunning = false;
+        releaseCpu();
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if(nm != null) {
+            Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("Mining Stopped")
+                .setContentText(reason)
+                .setSmallIcon(R.drawable.ic_launcher)
+                .setAutoCancel(true)
+                .build();
+            nm.notify(2, n);
+        }
+        stopSelf();
+    }
     
     @Override 
     public void onDestroy() { 
