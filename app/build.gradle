@@ -48,7 +48,7 @@ dependencies {
     // ⚙️ WorkManager (for background jobs)
     implementation 'androidx.work:work-runtime:2.8.1'
     implementation 'com.google.guava:guava:32.1.3-android'
-    implementation 'com.google.android.gms:play-services-ads:23.0.0
+    implementation 'com.google.android.gms:play-services-ads:23.0.0'
 
     // 🖼️ Image Slider Library (REQUIRED for the HomeFragment code)
     implementation 'com.github.denzcoskun:ImageSlideshow:0.1.2'
