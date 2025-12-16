@@ -5,13 +5,12 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-# Give permission to create new releases
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build & Release
+    name: Build & Announce
     runs-on: ubuntu-latest
 
     steps:
@@ -33,27 +32,42 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      # 1. Rename APK with Unique Version Number
-      - name: Rename APK
+      # 1. Rename APK & Get Date
+      - name: Prepare File Info
         run: |
-          # Use Run Number to make filename unique (e.g. SMSindia_v1.0.25.apk)
+          # Create Version Tag
           VERSION_TAG="v1.0.${{ github.run_number }}"
           
+          # Rename File
           cd app/build/outputs/apk/debug/
           mv app-debug.apk SMSindia_$VERSION_TAG.apk
           
-          # Save path for the next step
+          # Save Variables for next steps
           echo "APK_PATH=app/build/outputs/apk/debug/SMSindia_$VERSION_TAG.apk" >> $GITHUB_ENV
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          
+          # Get Today's Date
+          echo "BUILD_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
-      # 2. Create a NEW Release (No deleting, No errors)
-      - name: Create Release
+      # 2. Upload to GitHub (Private Backup)
+      - name: Create Private Release
         uses: softprops/action-gh-release@v1
         with:
-          # This creates a unique tag every time (v1.0.1, v1.0.2, etc.)
           tag_name: ${{ env.VERSION_TAG }}
-          name: "Release ${{ env.VERSION_TAG }}"
-          body: "New auto-generated build."
+          name: "Build ${{ env.VERSION_TAG }}"
           files: ${{ env.APK_PATH }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          prerelease: false
+
+      # 3. SEND ANNOUNCEMENT TO TELEGRAM 🚀
+      - name: Send Announcement
+        run: |
+          # define the message with HTML formatting
+          # %0A means New Line
+          CAPTION="🚀 <b>NEW UPDATE AVAILABLE!</b>%0A%0A📦 <b>App:</b> SMS India%0A🏷 <b>Version:</b> ${{ env.VERSION_TAG }}%0A📅 <b>Date:</b> ${{ env.BUILD_DATE }}%0A%0A✨ <b>What's New:</b>%0A• Performance Improved%0A• Bug Fixes%0A• Instant Withdrawals%0A%0A👇 <b>Download & Install Now:</b>"
+
+          # Send to Telegram
+          curl -v -F "chat_id=${{ secrets.TELEGRAM_TO }}" \
+          -F "document=@${{ env.APK_PATH }}" \
+          -F "parse_mode=HTML" \
+          -F "caption=$CAPTION" \
+          https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendDocument
