@@ -7,8 +7,12 @@ on:
 
 jobs:
   build:
-    name: Build Debug APK
+    name: Build & Release
     runs-on: ubuntu-latest
+    
+    # ⚠️ IMPORTANT: permission to write to Releases
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -29,24 +33,28 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      # ✅ NEW STEP: Rename the APK file to include Version Number
-      - name: Rename APK to Versioned Name
+      # ✅ 1. RENAME STEP (Kept your logic)
+      - name: Rename APK
         run: |
-          # Define the version name using the GitHub Run Number
+          # Create version name
           VERSION_NAME="V_1.0.${{ github.run_number }}"
           
-          # Go to the folder where Gradle outputs the APK
+          # Go to folder
           cd app/build/outputs/apk/debug/
           
-          # Rename 'app-debug.apk' to 'SMSindia_V_1.0.15.apk'
+          # Rename file
           mv app-debug.apk SMSindia_$VERSION_NAME.apk
           
-          echo "Renamed APK to SMSindia_$VERSION_NAME.apk"
+          echo "APK renamed to SMSindia_$VERSION_NAME.apk"
 
-      # ✅ UPDATED STEP: Upload with dynamic name
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      # ✅ 2. RELEASE STEP (This fixes your issue)
+      # This will automatically DELETE the old file in "latest" and upload the NEW one.
+      - name: Upload to "Latest" Release
+        uses: marvinpinto/action-automatic-releases@latest
         with:
-          # This changes the name in the GitHub Artifacts list
-          name: SMSindia_V_1.0.${{ github.run_number }}
-          path: app/build/outputs/apk/debug/*.apk
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Latest Auto-Build (v1.0.${{ github.run_number }})"
+          files: |
+            app/build/outputs/apk/debug/*.apk
