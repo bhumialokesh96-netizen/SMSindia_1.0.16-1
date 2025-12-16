@@ -1,14 +1,16 @@
-package com.smsindia.app.service; // Make sure this matches your folder!
+package com.smsindia.app.service;
 
 import com.google.gson.annotations.SerializedName;
 
 public class TaskModel {
-    @SerializedName("task_id")
+    // If your Supabase Table columns are simply 'id', 'phone', 'message':
+    
+    @SerializedName("id") 
     public String id;
 
-    @SerializedName("target_phone")
+    @SerializedName("phone") 
     public String phone;
 
-    @SerializedName("msg_content")
+    @SerializedName("message") 
     public String message;
 }

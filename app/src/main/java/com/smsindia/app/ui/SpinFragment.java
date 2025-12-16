@@ -1,5 +1,7 @@
 package com.smsindia.app.ui;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
@@ -13,39 +15,61 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
-import com.google.firebase.firestore.FieldValue;
-import com.google.firebase.firestore.FirebaseFirestore;
+
 import com.smsindia.app.R;
+import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.service.UserModel;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class SpinFragment extends Fragment {
 
-    private LuckyWheelView wheelView;
+    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
+
+    private LuckyWheelView wheelView; // Ensure this class exists in your project
     private Button btnSpin;
     private TextView tvTokens;
-    private FirebaseFirestore db;
-    private String uid;
+    
+    private SupabaseApi supabaseApi;
+    private String mobileNumber;
     
     private long spinTokens = 0;
+    private double currentBalance = 0.0;
     private boolean isSpinning = false;
 
-    // Wheel Data
+    // Wheel Data: 0.6, 0.8, 10.0, 0.0, 100.0, 0.6
     private Double[] rewardsValue = {0.6, 0.8, 10.0, 0.0, 100.0, 0.6};
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_spin, container, false);
+
+        // Init Retrofit
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(SUPABASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        supabaseApi = retrofit.create(SupabaseApi.class);
 
         wheelView = v.findViewById(R.id.wheel_view);
         btnSpin = v.findViewById(R.id.btn_spin_now);
         tvTokens = v.findViewById(R.id.tv_spin_tokens);
         
-        db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        uid = prefs.getString("mobile", "");
-
-        fetchSpinTokens();
+        mobileNumber = prefs.getString("mobile", "");
 
         btnSpin.setOnClickListener(view -> {
             if (isSpinning) return;
@@ -59,14 +83,34 @@ public class SpinFragment extends Fragment {
         return v;
     }
 
-    private void fetchSpinTokens() {
-        if(uid.isEmpty()) return;
-        db.collection("users").document(uid).addSnapshotListener((snapshot, e) -> {
-            if (e != null || snapshot == null) return;
-            Long tokens = snapshot.getLong("coins");
-            spinTokens = (tokens != null) ? tokens : 0;
-            tvTokens.setText(String.valueOf(spinTokens));
-        });
+    @Override
+    public void onResume() {
+        super.onResume();
+        fetchUserData();
+    }
+
+    private void fetchUserData() {
+        if(mobileNumber.isEmpty()) return;
+        
+        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+            .enqueue(new Callback<List<UserModel>>() {
+                @Override
+                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        UserModel user = response.body().get(0);
+                        
+                        spinTokens = user.getCoins();
+                        currentBalance = user.getBalance();
+                        
+                        tvTokens.setText(String.valueOf(spinTokens));
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<List<UserModel>> call, Throwable t) {
+                    // Fail silently
+                }
+            });
     }
 
     private void startRiggedSpin() {
@@ -74,15 +118,20 @@ public class SpinFragment extends Fragment {
         btnSpin.setEnabled(false);
         btnSpin.setAlpha(0.6f);
 
-        // Deduct Token
-        db.collection("users").document(uid).update("coins", FieldValue.increment(-1));
+        // 1. Deduct Token Locally
+        spinTokens = spinTokens - 1;
+        tvTokens.setText(String.valueOf(spinTokens));
+
+        // 2. Sync Deduction to Server
+        updateUserField("coins", spinTokens);
 
         // --- PROBABILITY LOGIC ---
         int targetIndex;
         int rand = new Random().nextInt(100); 
 
+        // 96% chance to get index 0 (0.6) or 5 (0.6)
         if (rand < 96) {
-            targetIndex = (new Random().nextBoolean()) ? 0 : 5; // 0.6
+            targetIndex = (new Random().nextBoolean()) ? 0 : 5; 
         } else {
              int[] others = {1, 2, 3, 4};
              targetIndex = others[new Random().nextInt(others.length)];
@@ -99,9 +148,9 @@ public class SpinFragment extends Fragment {
 
         Double reward = rewardsValue[targetIndex];
 
-        animator.addListener(new android.animation.AnimatorListenerAdapter() {
+        animator.addListener(new AnimatorListenerAdapter() {
             @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
+            public void onAnimationEnd(Animator animation) {
                 isSpinning = false;
                 btnSpin.setEnabled(true);
                 btnSpin.setAlpha(1.0f);
@@ -112,25 +161,40 @@ public class SpinFragment extends Fragment {
 
     private void handleWin(Double reward) {
         if (reward > 0) {
-            // Update Database
-            db.collection("users").document(uid).update("balance", FieldValue.increment(reward));
+            // 1. Update Balance Locally
+            currentBalance += reward;
+
+            // 2. Sync Balance to Server
+            updateUserField("balance", currentBalance);
             
-            // Show Custom Dialog instead of Toast
+            // 3. Show Success
             showWinDialog(reward);
-            
         } else {
             Toast.makeText(getContext(), "Better Luck Next Time!", Toast.LENGTH_SHORT).show();
         }
     }
 
-    // --- NEW DIALOG FUNCTION ---
+    // Helper to update single fields
+    private void updateUserField(String fieldName, Object value) {
+        Map<String, Object> body = new HashMap<>();
+        body.put(fieldName, value);
+
+        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, body)
+            .enqueue(new Callback<Void>() {
+                @Override public void onResponse(Call<Void> c, Response<Void> r) {}
+                @Override public void onFailure(Call<Void> c, Throwable t) {}
+            });
+    }
+
+    // --- DIALOG FUNCTION ---
     private void showWinDialog(Double amount) {
+        if(getContext() == null) return;
+        
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_spin_win, null);
         builder.setView(view);
         AlertDialog dialog = builder.create();
         
-        // Make background transparent so rounded corners show
         if(dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
@@ -138,13 +202,13 @@ public class SpinFragment extends Fragment {
         TextView tvAmount = view.findViewById(R.id.tv_win_amount);
         Button btnCollect = view.findViewById(R.id.btn_collect_win);
 
-        tvAmount.setText("₹" + amount);
+        tvAmount.setText(String.format("₹ %.2f", amount));
 
         btnCollect.setOnClickListener(v -> {
             dialog.dismiss();
         });
 
-        dialog.setCancelable(false); // Force user to click Collect
+        dialog.setCancelable(false);
         dialog.show();
     }
 }

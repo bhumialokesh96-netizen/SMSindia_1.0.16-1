@@ -8,26 +8,39 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.firebase.Timestamp;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
+
 import com.smsindia.app.R;
+import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.service.WithdrawModel;
+
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class WithdrawalHistoryActivity extends AppCompatActivity {
+
+    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private RecyclerView recyclerView;
     private WithdrawalAdapter adapter;
     private List<WithdrawModel> list;
-    private FirebaseFirestore db;
+    private SupabaseApi supabaseApi;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -36,51 +49,59 @@ public class WithdrawalHistoryActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recycler_withdrawals);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        
         list = new ArrayList<>();
         adapter = new WithdrawalAdapter(list);
         recyclerView.setAdapter(adapter);
 
-        db = FirebaseFirestore.getInstance();
+        // Init Retrofit
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(SUPABASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        supabaseApi = retrofit.create(SupabaseApi.class);
+
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", 0);
-        String uid = prefs.getString("mobile", "");
+        // CRITICAL: We need the UUID now, not the phone number
+        String userUuid = prefs.getString("userId", ""); 
 
-        if(!uid.isEmpty()) {
-            loadHistory(uid);
+        if(!userUuid.isEmpty()) {
+            loadHistory(userUuid);
+        } else {
+            Toast.makeText(this, "User ID missing. Please Relogin.", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void loadHistory(String uid) {
-        db.collection("users").document(uid).collection("withdrawals")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .get()
-                .addOnSuccessListener(snapshots -> {
-                    list.clear();
-                    for (QueryDocumentSnapshot doc : snapshots) {
-                        Double amount = doc.getDouble("amount");
-                        String status = doc.getString("status");
-                        Timestamp ts = doc.getTimestamp("timestamp");
-                        list.add(new WithdrawModel(amount, status, ts));
+    private void loadHistory(String uuid) {
+        // Query: user_id equals UUID, Order by created_at Descending
+        supabaseApi.getWithdrawals(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + uuid, "created_at.desc")
+            .enqueue(new Callback<List<WithdrawModel>>() {
+                @Override
+                public void onResponse(Call<List<WithdrawModel>> call, Response<List<WithdrawModel>> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        list.clear();
+                        list.addAll(response.body());
+                        adapter.notifyDataSetChanged();
+                    } else {
+                        Toast.makeText(WithdrawalHistoryActivity.this, "Failed to load history", Toast.LENGTH_SHORT).show();
                     }
-                    adapter.notifyDataSetChanged();
-                });
-    }
+                }
 
-    // --- Data Model ---
-    public static class WithdrawModel {
-        Double amount;
-        String status;
-        Timestamp timestamp;
-
-        public WithdrawModel(Double amount, String status, Timestamp timestamp) {
-            this.amount = amount;
-            this.status = status;
-            this.timestamp = timestamp;
-        }
+                @Override
+                public void onFailure(Call<List<WithdrawModel>> call, Throwable t) {
+                    Toast.makeText(WithdrawalHistoryActivity.this, "Network Error", Toast.LENGTH_SHORT).show();
+                }
+            });
     }
 
     // --- Adapter ---
     public class WithdrawalAdapter extends RecyclerView.Adapter<WithdrawalAdapter.ViewHolder> {
         List<WithdrawModel> mList;
+        
+        // Date Formatters
+        SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()); // ISO from Supabase
+        SimpleDateFormat outputFormat = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()); // Readable
+
         public WithdrawalAdapter(List<WithdrawModel> list) { mList = list; }
 
         @NonNull @Override
@@ -93,11 +114,20 @@ public class WithdrawalHistoryActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             WithdrawModel model = mList.get(position);
             
-            holder.amount.setText("₹ " + model.amount);
+            holder.amount.setText(String.format("₹ %.2f", model.amount));
             
-            if(model.timestamp != null) {
-                SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
-                holder.date.setText(sdf.format(model.timestamp.toDate()));
+            // Parse Date String from Supabase
+            if(model.createdAt != null) {
+                try {
+                    // Fix slight format issues if milliseconds are present
+                    String cleanDate = model.createdAt.split("\\.")[0]; 
+                    Date date = inputFormat.parse(cleanDate);
+                    if (date != null) {
+                        holder.date.setText(outputFormat.format(date));
+                    }
+                } catch (ParseException e) {
+                    holder.date.setText("Unknown Date");
+                }
             }
 
             // STATUS LOGIC (Reviewing -> Processing -> Completed)

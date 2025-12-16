@@ -56,7 +56,7 @@ public class TaskFragment extends Fragment {
     private int subId2 = -1;
     private boolean isAutoMode = true; 
     private boolean isServiceRunning = false;
-    private String userId;
+    private String userIdUUID; // Using UUID for Supabase
 
     // Receiver to handle updates from Service
     private final BroadcastReceiver updateReceiver = new BroadcastReceiver() {
@@ -79,7 +79,7 @@ public class TaskFragment extends Fragment {
             }
             else if (SmsMiningService.ACTION_BATCH_COMPLETE.equals(action)) {
                 setUIStoppedState();
-                // ✅ Get stats passed from Service (Success Count & Earnings)
+                // ✅ Get stats passed from Service
                 int success = intent.getIntExtra("successCount", 0);
                 double earned = intent.getDoubleExtra("earned", 0.0);
                 showSyncDialog(success, earned); 
@@ -104,7 +104,8 @@ public class TaskFragment extends Fragment {
         btnAction = v.findViewById(R.id.btn_action_main);
 
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        userId = prefs.getString("mobile", "unknown");
+        // CRITICAL: Fetching the UUID saved in LoginActivity
+        userIdUUID = prefs.getString("userId", "");
 
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(requireActivity(), new String[]{Manifest.permission.SEND_SMS, Manifest.permission.READ_PHONE_STATE}, PERMISSION_REQ_CODE);
@@ -131,9 +132,14 @@ public class TaskFragment extends Fragment {
             Toast.makeText(getContext(), "Select a SIM Card", Toast.LENGTH_SHORT).show();
             return;
         }
+        if (userIdUUID.isEmpty()) {
+            Toast.makeText(getContext(), "Session Expired. Please Relogin.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
         serviceIntent.putExtra("subId", selectedSubId);
-        serviceIntent.putExtra("userId", userId);
+        serviceIntent.putExtra("userId", userIdUUID); // Passing UUID to Service
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             requireActivity().startForegroundService(serviceIntent);
@@ -165,7 +171,7 @@ public class TaskFragment extends Fragment {
         progressTimer.setProgress(0);
     }
 
-    // 🎨 CUSTOM DIALOG LOGIC FOR YOUR XML
+    // 🎨 CUSTOM DIALOG LOGIC
     private void showSyncDialog(int successCount, double earnedAmount) {
         if (getActivity() == null) return;
 
@@ -188,7 +194,7 @@ public class TaskFragment extends Fragment {
         // Block Back Button
         dialog.setOnKeyListener((dialogInterface, keyCode, event) -> keyCode == KeyEvent.KEYCODE_BACK);
 
-        // Start 60s Timer
+        // Start 60s Cooldown Timer
         new CountDownTimer(60000, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
@@ -206,28 +212,30 @@ public class TaskFragment extends Fragment {
             @Override
             public void onFinish() {
                 if (dialog.isShowing()) {
-                    // 1. Hide the "seconds" text to make room
-                    // Since "seconds" doesn't have an ID in your XML, we find it via parent
+                    // 1. Attempt to hide the static "seconds" label if strictly defined in layout structure
                     try {
                         ViewGroup parentLayout = (ViewGroup) tvTimer.getParent();
                         if (parentLayout.getChildCount() > 1) {
-                            // The "seconds" text is the second child in that LinearLayout
                             parentLayout.getChildAt(1).setVisibility(View.GONE); 
                         }
-                    } catch (Exception e) { /* Ignore if layout structure differs */ }
+                    } catch (Exception e) { /* Ignore layout mismatches */ }
 
                     // 2. Update the Big Text with Result
-                    tvTimer.setTextSize(20); // Smaller font to fit the text
-                    tvTimer.setText(String.format(Locale.US, "Done!\n%d/10 Sent\n+₹%.2f", successCount, earnedAmount));
-                    tvTimer.setTextColor(Color.parseColor("#4CAF50")); // Green Success Color
+                    tvTimer.setTextSize(18); 
+                    tvTimer.setText(String.format(Locale.US, "Done!\n%d Sent\n+₹%.2f", successCount, earnedAmount));
+                    tvTimer.setTextColor(Color.parseColor("#4CAF50")); // Green Success
                     
-                    // 3. Stop Progress Bar
                     progressBar.setProgress(0);
                     
-                    // 4. Close Dialog after 4 seconds
+                    // 3. Auto-Close Dialog
                     new Handler().postDelayed(() -> {
                         if (dialog.isShowing()) dialog.dismiss();
                         tvStatus.setText("Batch Complete. Ready for next.");
+                        
+                        // Auto-Restart if mode is enabled
+                        if(isAutoMode && successCount > 0) {
+                            startService();
+                        }
                     }, 4000);
                 }
             }

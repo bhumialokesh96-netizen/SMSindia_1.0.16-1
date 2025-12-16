@@ -14,18 +14,15 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
-// ✅ THESE ARE THE MISSING IMPORTS YOU NEEDED
-import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FieldValue;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.Transaction;
-
+import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
+import com.smsindia.app.service.AppConfigModel;
+import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.service.UserModel;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -35,20 +32,37 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class HomeFragment extends Fragment {
+
+    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private TextView tvBalanceAmount, tvUserMobile;
     private ViewPager2 bannerViewPager;
-    private FirebaseFirestore db;
-    private String uid;
     
+    private SupabaseApi supabaseApi;
+    private String mobileNumber;
+    private String userIdUUID; 
+
     // Rewards for 10 Days
     private final int[] DAILY_REWARDS = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_home, container, false);
+
+        // Init Retrofit
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(SUPABASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        supabaseApi = retrofit.create(SupabaseApi.class);
 
         // Initialize Views
         tvBalanceAmount = v.findViewById(R.id.tv_balance_amount);
@@ -58,28 +72,30 @@ public class HomeFragment extends Fragment {
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
 
-        // Initialize Firebase
-        db = FirebaseFirestore.getInstance();
+        // Get User Info
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        uid = prefs.getString("mobile", ""); 
+        mobileNumber = prefs.getString("mobile", "");
+        userIdUUID = prefs.getString("userId", "");
+
+        tvUserMobile.setText(mobileNumber);
 
         setupBannerSlider();
-        fetchUserBalance();
 
         // Click Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         whatsappCard.setOnClickListener(view -> showWhatsAppLoginDialog());
         
         btnHistory.setOnClickListener(view -> {
-            try {
-                Intent intent = new Intent(getActivity(), Class.forName("com.smsindia.app.ui.HistoryActivity"));
-                startActivity(intent);
-            } catch (ClassNotFoundException e) {
-                 Toast.makeText(getContext(), "History Page Coming Soon", Toast.LENGTH_SHORT).show();
-            }
+             startActivity(new Intent(getActivity(), WithdrawalHistoryActivity.class));
         });
         
         return v;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        fetchUserBalance(); // Refresh balance when returning
     }
 
     // --- WHATSAPP LOGIC ---
@@ -104,31 +120,39 @@ public class HomeFragment extends Fragment {
             btnGetCode.setText("Checking Server...");
             btnGetCode.setEnabled(false);
 
-            // Check Admin Panel Settings
-            db.collection("app_settings").document("whatsapp_config").get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    boolean isActive = false;
-                    String msg = "Server Update: WhatsApp Pairing is coming soon!";
-                    
-                    if (documentSnapshot.exists()) {
-                        if(documentSnapshot.contains("is_active")) 
-                            isActive = Boolean.TRUE.equals(documentSnapshot.getBoolean("is_active"));
-                        if(documentSnapshot.contains("maintenance_msg")) 
-                            msg = documentSnapshot.getString("maintenance_msg");
+            // Fetch Config from Supabase Table 'app_config'
+            supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.whatsapp_config")
+                .enqueue(new Callback<List<AppConfigModel>>() {
+                    @Override
+                    public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
+                        boolean isActive = false;
+                        String msg = "Server Update: WhatsApp Pairing is coming soon!";
+
+                        if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                            // Parse JSONB object
+                            Object val = response.body().get(0).value;
+                            if (val instanceof LinkedTreeMap) {
+                                LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
+                                if (map.containsKey("is_active")) isActive = (boolean) map.get("is_active");
+                                if (map.containsKey("maintenance_msg")) msg = (String) map.get("maintenance_msg");
+                            }
+                        }
+
+                        if (isActive) {
+                            Toast.makeText(getContext(), "Connecting to WhatsApp Server...", Toast.LENGTH_SHORT).show();
+                            dialog.dismiss();
+                        } else {
+                            Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
+                            dialog.dismiss();
+                        }
                     }
 
-                    if (isActive) {
-                        Toast.makeText(getContext(), "Connecting to WhatsApp Server...", Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                    } else {
-                        Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
-                        dialog.dismiss();
+                    @Override
+                    public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
+                        Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                        btnGetCode.setEnabled(true);
+                        btnGetCode.setText("GET PAIRING CODE");
                     }
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
-                    btnGetCode.setEnabled(true);
-                    btnGetCode.setText("GET PAIRING CODE");
                 });
         });
 
@@ -138,32 +162,49 @@ public class HomeFragment extends Fragment {
 
     // --- DAILY CHECK-IN ---
     private void showDailyCheckInDialog() {
-        if (uid == null || uid.isEmpty()) return;
-        
-        db.collection("users").document(uid).get()
-            .addOnSuccessListener(documentSnapshot -> {
-                if (!documentSnapshot.exists()) return;
+        if (mobileNumber.isEmpty()) return;
 
-                String lastDate = documentSnapshot.getString("last_checkin_date");
-                Long streakLong = documentSnapshot.getLong("streak");
-                int currentStreak = (streakLong != null) ? streakLong.intValue() : 0;
-                String todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        // Fetch User Data first to see Streak/Last Date
+        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+            .enqueue(new Callback<List<UserModel>>() {
+                @Override
+                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        UserModel user = response.body().get(0);
+                        
+                        String lastDate = user.lastCheckinDate; // Ensure this exists in UserModel
+                        int currentStreak = user.streak;        // Ensure this exists in UserModel
+                        
+                        // Default values if null
+                        if (lastDate == null) lastDate = "";
+                        
+                        String todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
 
-                int streakToDisplay = 1;
-                boolean canClaim = true;
-                
-                if (todayDate.equals(lastDate)) {
-                    streakToDisplay = currentStreak;
-                    canClaim = false;
-                } else {
-                    streakToDisplay = currentStreak + 1; 
-                    if(streakToDisplay > 10) streakToDisplay = 1; 
+                        int streakToDisplay;
+                        boolean canClaim = true;
+
+                        if (todayDate.equals(lastDate)) {
+                            streakToDisplay = currentStreak; // Already claimed today
+                            canClaim = false;
+                        } else {
+                            streakToDisplay = currentStreak + 1; // Next day
+                            if(streakToDisplay > 10) streakToDisplay = 1; 
+                        }
+                        
+                        launchDialogUI(streakToDisplay, canClaim, todayDate);
+                    }
                 }
-                launchDialogUI(streakToDisplay, canClaim, todayDate);
+
+                @Override
+                public void onFailure(Call<List<UserModel>> call, Throwable t) {
+                     Toast.makeText(getContext(), "Loading failed", Toast.LENGTH_SHORT).show();
+                }
             });
     }
 
     private void launchDialogUI(int currentDay, boolean canClaim, String todayDate) {
+        if(getContext() == null) return;
+        
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
         builder.setView(view);
@@ -207,7 +248,7 @@ public class HomeFragment extends Fragment {
             btnClaim.setBackgroundResource(R.drawable.bg_gold_3d);
             btnClaim.setTextColor(Color.parseColor("#5D4037")); 
             
-            // Call the Secure Claim Method
+            // Call the RPC Method
             btnClaim.setOnClickListener(v -> {
                 btnClaim.setEnabled(false);
                 btnClaim.setText("Processing...");
@@ -219,53 +260,36 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
-    // ✅ SECURE TRANSACTION METHOD (Prevents Double Claim)
+    // ✅ SECURE TRANSACTION METHOD (RPC)
     private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
-        if (uid == null) return;
-        
-        final DocumentReference userRef = db.collection("users").document(uid);
-        final DocumentReference historyRef = db.collection("users").document(uid).collection("transactions").document();
+        if (userIdUUID.isEmpty()) return;
 
-        db.runTransaction((Transaction.Function<Void>) transaction -> {
-            // 1. READ
-            DocumentSnapshot snapshot = transaction.get(userRef);
+        Map<String, Object> params = new HashMap<>();
+        params.put("p_user_id", userIdUUID);
+        params.put("p_amount", amount);
+        params.put("p_streak", day);
+        params.put("p_date", todayDate);
 
-            // 2. CHECK SECURITY
-            String serverLastDate = snapshot.getString("last_checkin_date");
-            if (serverLastDate != null && serverLastDate.equals(todayDate)) {
-                // Abort if already claimed
-                throw new FirebaseFirestoreException("Already Claimed Today!", FirebaseFirestoreException.Code.ABORTED);
-            }
+        supabaseApi.claimCheckIn(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, params)
+            .enqueue(new Callback<Void>() {
+                @Override
+                public void onResponse(Call<Void> call, Response<Void> response) {
+                    if (response.isSuccessful()) {
+                        Toast.makeText(getContext(), "Claimed ₹" + amount + " successfully!", Toast.LENGTH_SHORT).show();
+                        if(dialog.isShowing()) dialog.dismiss();
+                        fetchUserBalance(); // Refresh UI
+                    } else {
+                        Toast.makeText(getContext(), "Claim Failed (Already claimed?)", Toast.LENGTH_SHORT).show();
+                        if(dialog.isShowing()) dialog.dismiss();
+                    }
+                }
 
-            // 3. CALCULATE
-            Double currentBalance = snapshot.getDouble("balance");
-            if (currentBalance == null) currentBalance = 0.0;
-            double newBalance = currentBalance + amount;
-
-            // 4. WRITE
-            transaction.update(userRef, "balance", newBalance);
-            transaction.update(userRef, "last_checkin_date", todayDate);
-            transaction.update(userRef, "streak", day);
-
-            Map<String, Object> txData = new HashMap<>();
-            txData.put("title", "Daily Check-in (Day " + day + ")");
-            txData.put("amount", amount);
-            txData.put("type", "CREDIT");
-            txData.put("timestamp", FieldValue.serverTimestamp());
-            transaction.set(historyRef, txData);
-
-            return null;
-        }).addOnSuccessListener(aVoid -> {
-            Toast.makeText(getContext(), "Claimed ₹" + amount + " successfully!", Toast.LENGTH_SHORT).show();
-            if(dialog.isShowing()) dialog.dismiss();
-        }).addOnFailureListener(e -> {
-            if (e.getMessage() != null && e.getMessage().contains("Already Claimed")) {
-                Toast.makeText(getContext(), "Nice try! You already claimed today.", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(getContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-            if(dialog.isShowing()) dialog.dismiss();
-        });
+                @Override
+                public void onFailure(Call<Void> call, Throwable t) {
+                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                    if(dialog.isShowing()) dialog.dismiss();
+                }
+            });
     }
 
     private void setupBannerSlider() {
@@ -280,14 +304,18 @@ public class HomeFragment extends Fragment {
     }
 
     private void fetchUserBalance() {
-        if (uid == null || uid.isEmpty()) return;
-        db.collection("users").document(uid).addSnapshotListener((snapshot, e) -> {
-            if (e == null && snapshot != null && snapshot.exists()) {
-                Double bal = snapshot.getDouble("balance");
-                if (bal != null) tvBalanceAmount.setText(String.format("₹ %.2f", bal));
-                String name = snapshot.getString("name");
-                if(name != null) tvUserMobile.setText(name);
-            }
-        });
+        if (mobileNumber.isEmpty()) return;
+        
+        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+            .enqueue(new Callback<List<UserModel>>() {
+                @Override
+                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        UserModel user = response.body().get(0);
+                        tvBalanceAmount.setText(String.format("₹ %.2f", user.getBalance()));
+                    }
+                }
+                @Override public void onFailure(Call<List<UserModel>> call, Throwable t) {}
+            });
     }
 }

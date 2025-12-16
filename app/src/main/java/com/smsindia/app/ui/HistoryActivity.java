@@ -1,31 +1,45 @@
 package com.smsindia.app.ui;
 
 import android.content.SharedPreferences;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.firebase.Timestamp;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Query;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
+
 import com.smsindia.app.R;
+import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.service.TransactionModel;
+
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class HistoryActivity extends AppCompatActivity {
+
+    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private RecyclerView recyclerView;
     private HistoryAdapter adapter;
     private List<TransactionModel> list;
-    private FirebaseFirestore db;
+    private SupabaseApi supabaseApi;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,53 +48,63 @@ public class HistoryActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recycler_history);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        
         list = new ArrayList<>();
         adapter = new HistoryAdapter(list);
         recyclerView.setAdapter(adapter);
 
-        db = FirebaseFirestore.getInstance();
+        // Init Retrofit
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(SUPABASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        supabaseApi = retrofit.create(SupabaseApi.class);
+
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", 0);
-        String uid = prefs.getString("mobile", "");
+        // CRITICAL: Use UUID, not Phone
+        String userIdUUID = prefs.getString("userId", "");
 
-        if(!uid.isEmpty()) {
-            loadHistory(uid);
+        if(!userIdUUID.isEmpty()) {
+            loadHistory(userIdUUID);
+        } else {
+            Toast.makeText(this, "User ID missing. Please Relogin.", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void loadHistory(String uid) {
-        db.collection("users").document(uid).collection("transactions")
-                .orderBy("timestamp", Query.Direction.DESCENDING)
-                .get()
-                .addOnSuccessListener(snapshots -> {
-                    list.clear();
-                    for (QueryDocumentSnapshot doc : snapshots) {
-                        String title = doc.getString("title");
-                        Double amount = doc.getDouble("amount");
-                        String type = doc.getString("type");
-                        Timestamp ts = doc.getTimestamp("timestamp");
-                        list.add(new TransactionModel(title, amount, type, ts));
+    private void loadHistory(String uuid) {
+        // Query: user_id = UUID, ordered by created_at DESC
+        supabaseApi.getTransactions(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + uuid, "created_at.desc")
+            .enqueue(new Callback<List<TransactionModel>>() {
+                @Override
+                public void onResponse(Call<List<TransactionModel>> call, Response<List<TransactionModel>> response) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        list.clear();
+                        list.addAll(response.body());
+                        
+                        if (list.isEmpty()) {
+                            Toast.makeText(HistoryActivity.this, "No transactions found", Toast.LENGTH_SHORT).show();
+                        }
+                        adapter.notifyDataSetChanged();
+                    } else {
+                        Toast.makeText(HistoryActivity.this, "Failed to load history", Toast.LENGTH_SHORT).show();
                     }
-                    adapter.notifyDataSetChanged();
-                });
+                }
+
+                @Override
+                public void onFailure(Call<List<TransactionModel>> call, Throwable t) {
+                    Toast.makeText(HistoryActivity.this, "Network Error", Toast.LENGTH_SHORT).show();
+                }
+            });
     }
 
-    // --- Inner Classes for Simplicity ---
-
-    public static class TransactionModel {
-        String title, type;
-        Double amount;
-        Timestamp timestamp;
-
-        public TransactionModel(String title, Double amount, String type, Timestamp timestamp) {
-            this.title = title;
-            this.amount = amount;
-            this.type = type;
-            this.timestamp = timestamp;
-        }
-    }
-
+    // --- Adapter ---
     public class HistoryAdapter extends RecyclerView.Adapter<HistoryAdapter.ViewHolder> {
         List<TransactionModel> mList;
+        
+        // Date Formatters
+        SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
+        SimpleDateFormat outputFormat = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
+
         public HistoryAdapter(List<TransactionModel> list) { mList = list; }
 
         @NonNull @Override
@@ -95,18 +119,23 @@ public class HistoryActivity extends AppCompatActivity {
             holder.title.setText(model.title);
             
             // Format Date
-            if(model.timestamp != null) {
-                SimpleDateFormat sdf = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
-                holder.date.setText(sdf.format(model.timestamp.toDate()));
+            if(model.createdAt != null) {
+                try {
+                    String cleanDate = model.createdAt.split("\\.")[0]; // Remove milliseconds
+                    Date date = inputFormat.parse(cleanDate);
+                    if (date != null) holder.date.setText(outputFormat.format(date));
+                } catch (ParseException e) {
+                    holder.date.setText("Just now");
+                }
             }
 
             // Format Amount and Color
-            if ("DEBIT".equals(model.type)) {
+            if ("DEBIT".equalsIgnoreCase(model.type)) {
                 holder.amount.setText("- ₹" + model.amount);
-                holder.amount.setTextColor(android.graphics.Color.RED);
+                holder.amount.setTextColor(Color.RED);
             } else {
                 holder.amount.setText("+ ₹" + model.amount);
-                holder.amount.setTextColor(android.graphics.Color.parseColor("#4CAF50")); // Green
+                holder.amount.setTextColor(Color.parseColor("#4CAF50")); // Green
             }
         }
 

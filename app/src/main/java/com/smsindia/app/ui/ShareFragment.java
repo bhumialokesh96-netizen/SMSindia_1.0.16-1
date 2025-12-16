@@ -12,37 +12,59 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.firebase.firestore.FieldValue;
-import com.google.firebase.firestore.FirebaseFirestore;
+
+import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
+import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.service.UserModel;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
 public class ShareFragment extends Fragment {
+
+    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private TextView tvTotalRefs, tvEarnings, tvCoins, tvCode;
     private RecyclerView recyclerMilestones;
-    private FirebaseFirestore db;
-    private String uid;
+    
+    private SupabaseApi supabaseApi;
+    private String mobileNumber;
 
     // User Stats
     private long userSmsCount = 0;
     private long userReferralCount = 0;
-    private Map<String, Object> claimedMilestones = new HashMap<>();
+    private long currentCoins = 0; // Needed to increment locally
+    private Map<String, Boolean> claimedMilestones = new HashMap<>();
     
     // Adapter
     private MilestoneAdapter adapter;
     private List<Milestone> milestoneList;
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_share, container, false);
+
+        // Init Retrofit
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(SUPABASE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        supabaseApi = retrofit.create(SupabaseApi.class);
 
         // Init Views
         tvTotalRefs = v.findViewById(R.id.tv_total_referrals);
@@ -52,29 +74,29 @@ public class ShareFragment extends Fragment {
         Button btnShare = v.findViewById(R.id.btn_share_app);
         recyclerMilestones = v.findViewById(R.id.recycler_milestones);
 
-        // Init Firebase
-        db = FirebaseFirestore.getInstance();
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        uid = prefs.getString("mobile", "");
+        mobileNumber = prefs.getString("mobile", "");
         
-        tvCode.setText(uid); // Display Mobile/Refer Code
+        tvCode.setText(mobileNumber);
 
         setupMilestoneList(); // Define rewards
-        fetchUserData(); // Get counts from DB
-
-        // --- UPDATED: USE VERCEL LINK ---
+        
+        // --- SHARE LINK ---
         btnShare.setOnClickListener(view -> shareReferralLink());
 
         return v;
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        fetchUserData(); // Refresh stats when user returns
+    }
+
     private void shareReferralLink() {
-        if(uid == null || uid.isEmpty()) return;
+        if(mobileNumber == null || mobileNumber.isEmpty()) return;
 
-        // 1. Your Vercel Website Link with ID
-        String shareUrl = "https://smsindia-web.vercel.app/?ref=" + uid;
-
-        // 2. Attractive Message
+        String shareUrl = "https://smsindia-web.vercel.app/?ref=" + mobileNumber;
         String message = "🔥 Earn ₹500 Daily! Download SMS India App.\n" +
                          "Use my Referral Link to get a Bonus:\n\n" + 
                          shareUrl;
@@ -100,51 +122,88 @@ public class ShareFragment extends Fragment {
     }
 
     private void fetchUserData() {
-        if (uid.isEmpty()) return;
+        if (mobileNumber.isEmpty()) return;
 
-        db.collection("users").document(uid).addSnapshotListener((snapshot, e) -> {
-            if (e != null || snapshot == null || !snapshot.exists()) return;
+        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+            .enqueue(new Callback<List<UserModel>>() {
+                @Override
+                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        UserModel user = response.body().get(0);
 
-            // 1. Stats Dash
-            Double earnings = snapshot.getDouble("referral_earnings");
-            Long refs = snapshot.getLong("referral_count");
-            Long coins = snapshot.getLong("coins"); 
-            Long sms = snapshot.getLong("sms_count"); 
+                        // 1. Update Stats UI
+                        userSmsCount = user.smsCount;
+                        userReferralCount = user.referralCount;
+                        currentCoins = user.getCoins();
+                        
+                        // NOTE: 'referral_earnings' needs to be added to UserModel if you want it displayed
+                        // For now we default to 0.0 or need to update UserModel
+                        tvEarnings.setText("₹0.0"); 
+                        tvTotalRefs.setText(String.valueOf(userReferralCount));
+                        tvCoins.setText(String.valueOf(currentCoins));
 
-            tvEarnings.setText(String.format("₹%.1f", (earnings != null ? earnings : 0.0)));
-            tvTotalRefs.setText(String.valueOf(refs != null ? refs : 0));
-            tvCoins.setText(String.valueOf(coins != null ? coins : 0));
+                        // 2. Parse Claimed Milestones (JSONB -> Map)
+                        claimedMilestones.clear();
+                        if (user.claimedMilestones instanceof LinkedTreeMap) {
+                            LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) user.claimedMilestones;
+                            for (Object key : map.keySet()) {
+                                claimedMilestones.put(String.valueOf(key), true);
+                            }
+                        }
 
-            // 2. Update local variables for milestones
-            userReferralCount = (refs != null) ? refs : 0;
-            userSmsCount = (sms != null) ? sms : 0;
+                        adapter.notifyDataSetChanged();
+                    }
+                }
 
-            // 3. Get Claimed History
-            if (snapshot.contains("claimed_milestones")) {
-                claimedMilestones = (Map<String, Object>) snapshot.get("claimed_milestones");
-            } else {
-                claimedMilestones = new HashMap<>();
-            }
-
-            // 4. Refresh List
-            adapter.notifyDataSetChanged();
-        });
+                @Override
+                public void onFailure(Call<List<UserModel>> call, Throwable t) {
+                    // Fail silently
+                }
+            });
     }
 
     private void claimReward(Milestone m) {
-        if (claimedMilestones.containsKey(m.id) && (boolean) claimedMilestones.get(m.id)) return;
+        if (claimedMilestones.containsKey(m.id)) return;
 
-        db.collection("users").document(uid)
-                .update("coins", FieldValue.increment(m.reward), 
-                        "claimed_milestones." + m.id, true)
-                .addOnSuccessListener(a -> {
-                    Toast.makeText(getContext(), "Claimed " + m.reward + " Coins!", Toast.LENGTH_SHORT).show();
-                })
-                .addOnFailureListener(e -> Toast.makeText(getContext(), "Error claiming", Toast.LENGTH_SHORT).show());
+        // Optimistic UI Update
+        claimedMilestones.put(m.id, true);
+        adapter.notifyDataSetChanged();
+
+        // Prepare Update Data
+        Map<String, Object> updateData = new HashMap<>();
+        updateData.put("coins", currentCoins + m.reward);
+        
+        // We must re-send the whole map + new item because PATCH merges top-level fields, not nested JSON keys
+        // (This is a simplified approach; ideally use an RPC function or careful JSON merge)
+        Map<String, Boolean> newMap = new HashMap<>(claimedMilestones);
+        updateData.put("claimed_milestones", newMap);
+
+        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, updateData)
+                .enqueue(new Callback<Void>() {
+                    @Override
+                    public void onResponse(Call<Void> call, Response<Void> response) {
+                        if(response.isSuccessful()) {
+                            currentCoins += m.reward;
+                            tvCoins.setText(String.valueOf(currentCoins));
+                            Toast.makeText(getContext(), "Claimed " + m.reward + " Coins!", Toast.LENGTH_SHORT).show();
+                        } else {
+                            // Revert on failure
+                            claimedMilestones.remove(m.id);
+                            adapter.notifyDataSetChanged();
+                            Toast.makeText(getContext(), "Claim Failed", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<Void> call, Throwable t) {
+                        claimedMilestones.remove(m.id);
+                        adapter.notifyDataSetChanged();
+                    }
+                });
     }
 
     // --- INNER CLASS: MODEL ---
-    class Milestone {
+    static class Milestone {
         String id;
         String title;
         int target;
