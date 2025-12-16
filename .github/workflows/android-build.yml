@@ -5,12 +5,13 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+# Give permission to create new releases
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build & Replace Release
+    name: Build & Release
     runs-on: ubuntu-latest
 
     steps:
@@ -32,31 +33,27 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      # 1. Rename APK
+      # 1. Rename APK with Unique Version Number
       - name: Rename APK
         run: |
-          VERSION_NAME="V_1.0.${{ github.run_number }}"
+          # Use Run Number to make filename unique (e.g. SMSindia_v1.0.25.apk)
+          VERSION_TAG="v1.0.${{ github.run_number }}"
+          
           cd app/build/outputs/apk/debug/
-          mv app-debug.apk SMSindia_$VERSION_NAME.apk
-          echo "APK_PATH=app/build/outputs/apk/debug/SMSindia_$VERSION_NAME.apk" >> $GITHUB_ENV
+          mv app-debug.apk SMSindia_$VERSION_TAG.apk
+          
+          # Save path for the next step
+          echo "APK_PATH=app/build/outputs/apk/debug/SMSindia_$VERSION_TAG.apk" >> $GITHUB_ENV
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
 
-      # 2. DELETE OLD RELEASE (The Fix 🛠️)
-      # This deletes the 'latest' tag so we never get the "Immutable" error
-      - name: Delete existing 'latest' tag/release
-        uses: dev-drprasad/delete-tag-and-release@v1.1
-        with:
-          tag_name: latest
-          delete_release: true
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      # 3. CREATE NEW RELEASE
-      # We use softprops/action-gh-release because it's very stable for fresh releases
-      - name: Create New 'Latest' Release
+      # 2. Create a NEW Release (No deleting, No errors)
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: latest
-          name: "Latest Auto-Build (v1.0.${{ github.run_number }})"
-          body: "New build generated automatically."
+          # This creates a unique tag every time (v1.0.1, v1.0.2, etc.)
+          tag_name: ${{ env.VERSION_TAG }}
+          name: "Release ${{ env.VERSION_TAG }}"
+          body: "New auto-generated build."
           files: ${{ env.APK_PATH }}
-          prerelease: true
           token: ${{ secrets.GITHUB_TOKEN }}
+          prerelease: false
