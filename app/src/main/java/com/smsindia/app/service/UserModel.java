@@ -29,6 +29,9 @@ public class UserModel {
     public Object bankDetails;
     @SerializedName("ad_progress")
     public int adProgress;
+       // ✅ ADD THIS LINE
+    @SerializedName("password") 
+    public String password; 
 
     @SerializedName("spins")
     public int spins;// Supabase returns this as JSON Object

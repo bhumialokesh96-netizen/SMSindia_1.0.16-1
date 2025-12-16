@@ -11,7 +11,6 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Base64;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -111,15 +110,16 @@ public class LoginActivity extends AppCompatActivity {
     // --- LOGIN LOGIC ---
     private void loginUser() {
         String phoneRaw = phoneInput.getText().toString().trim();
-        String password = passwordInput.getText().toString().trim();
+        String passwordInputStr = passwordInput.getText().toString().trim();
         final String phone = phoneRaw.replace("+91", "").replace(" ", "");
 
-        if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(password)) {
+        if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(passwordInputStr)) {
             Toast.makeText(this, "Enter phone and password", Toast.LENGTH_SHORT).show();
             return;
         }
 
         loginBtn.setEnabled(false);
+        loginBtn.setText("Checking...");
 
         // FETCH USER BY PHONE
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + phone)
@@ -127,30 +127,35 @@ public class LoginActivity extends AppCompatActivity {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     loginBtn.setEnabled(true);
+                    loginBtn.setText("LOGIN");
                     
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
                         
-                        // NOTE: In a real app, verify password hash. Here we assume plain text or implement hash check.
-                        // For this migration, we are assuming the backend logic or checking locally if pass is stored (not recommended for production but matches your prev code).
-                        // Since `password` isn't in UserModel yet, we assume success if phone exists for now OR you add password to UserModel.
-                        
-                        // Check Device Lock
-                        if (user.deviceId != null && !user.deviceId.equals(deviceId)) {
-                            // Update Device ID if user is valid (Optional Logic)
-                            updateUserDevice(phone, deviceId);
+                        // ✅ FIX: VERIFY PASSWORD HERE
+                        if (user.password != null && user.password.equals(passwordInputStr)) {
+                            
+                            // Check Device Lock
+                            if (user.deviceId != null && !user.deviceId.equals(deviceId)) {
+                                Toast.makeText(LoginActivity.this, "This account is locked to another device!", Toast.LENGTH_LONG).show();
+                                return; 
+                            }
+                            
+                            // Login Success
+                            saveLoginAndRedirect(user);
+                        } else {
+                            // ❌ Wrong Password
+                            Toast.makeText(LoginActivity.this, "Incorrect Password", Toast.LENGTH_SHORT).show();
                         }
-                        
-                        // Login Success
-                        saveLoginAndRedirect(user);
                     } else {
-                        Toast.makeText(LoginActivity.this, "User not found or Login Failed", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, "User not found. Please Register.", Toast.LENGTH_SHORT).show();
                     }
                 }
 
                 @Override
                 public void onFailure(Call<List<UserModel>> call, Throwable t) {
                     loginBtn.setEnabled(true);
+                    loginBtn.setText("LOGIN");
                     Toast.makeText(LoginActivity.this, "Connection Error", Toast.LENGTH_SHORT).show();
                 }
             });
@@ -169,6 +174,7 @@ public class LoginActivity extends AppCompatActivity {
         }
 
         signupBtn.setEnabled(false);
+        signupBtn.setText("Processing...");
 
         // 1. CHECK IF PHONE EXISTS
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + phone)
@@ -177,6 +183,7 @@ public class LoginActivity extends AppCompatActivity {
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         signupBtn.setEnabled(true);
+                        signupBtn.setText("REGISTER");
                         Toast.makeText(LoginActivity.this, "Phone already registered!", Toast.LENGTH_SHORT).show();
                     } else {
                         // 2. PHONE IS NEW -> CREATE USER
@@ -187,25 +194,29 @@ public class LoginActivity extends AppCompatActivity {
                 @Override
                 public void onFailure(Call<List<UserModel>> call, Throwable t) {
                     signupBtn.setEnabled(true);
+                    signupBtn.setText("REGISTER");
                     Toast.makeText(LoginActivity.this, "Network Error", Toast.LENGTH_SHORT).show();
                 }
             });
     }
 
     private void createNewUser(String phone, String password, String referCode) {
-        String newUserId = UUID.randomUUID().toString(); // Generate UUID for Supabase
+        String newUserId = UUID.randomUUID().toString(); 
 
         Map<String, Object> userMap = new HashMap<>();
         userMap.put("id", newUserId);
         userMap.put("phone", phone);
-        userMap.put("device_id", deviceId); // Matches SQL column 'device_id'
-        // userMap.put("password", password); // Add this if you added a 'password' column to SQL
+        userMap.put("device_id", deviceId); 
+        
+        // ✅ FIX: Save Password to Database
+        userMap.put("password", password); 
+        
         userMap.put("balance", 0.00);
         userMap.put("coins", 0);
         userMap.put("sms_count", 0);
         
         if (!TextUtils.isEmpty(referCode) && !referCode.equals(phone)) {
-            userMap.put("referred_by", referCode); // Matches SQL column 'referred_by'
+            userMap.put("referred_by", referCode);
         }
 
         supabaseApi.createUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "return=minimal", userMap)
@@ -221,6 +232,7 @@ public class LoginActivity extends AppCompatActivity {
                         saveLoginAndRedirect(newUser);
                     } else {
                         signupBtn.setEnabled(true);
+                        signupBtn.setText("REGISTER");
                         Toast.makeText(LoginActivity.this, "Register Failed: " + response.code(), Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -228,27 +240,17 @@ public class LoginActivity extends AppCompatActivity {
                 @Override
                 public void onFailure(Call<Void> call, Throwable t) {
                     signupBtn.setEnabled(true);
+                    signupBtn.setText("REGISTER");
                     Toast.makeText(LoginActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                 }
             });
     }
 
-    private void updateUserDevice(String phone, String newDeviceId) {
-        Map<String, Object> update = new HashMap<>();
-        update.put("device_id", newDeviceId);
-        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + phone, update)
-            .enqueue(new Callback<Void>() {
-                @Override public void onResponse(Call<Void> call, Response<Void> response) {}
-                @Override public void onFailure(Call<Void> call, Throwable t) {}
-            });
-    }
-
     private void saveLoginAndRedirect(UserModel user) {
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
-        // CRITICAL: We now save the UUID as 'userId' and Phone as 'mobile'
         prefs.edit()
-             .putString("userId", user.id)    // Needed for RPC calls
-             .putString("mobile", user.phone) // Needed for UI
+             .putString("userId", user.id)    
+             .putString("mobile", user.phone) 
              .putString("deviceId", user.deviceId)
              .apply();
 

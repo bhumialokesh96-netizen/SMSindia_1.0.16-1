@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.net.Uri; // ✅ Added for opening links
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,7 +13,6 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridLayout;
-import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,9 +20,10 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.card.MaterialCardView;
-import com.google.gson.Gson;
 import com.google.gson.internal.LinkedTreeMap;
+import com.smsindia.app.LoginActivity;
 import com.smsindia.app.R;
+import com.smsindia.app.service.AppConfigModel; // ✅ Added for Config
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
 
@@ -46,7 +47,7 @@ public class ProfileFragment extends Fragment {
     
     private SupabaseApi supabaseApi;
     private String mobileNumber;
-    private String userIdUUID; // Needed for Withdrawal Foreign Key
+    private String userIdUUID; 
     
     private double currentBalance = 0.0;
     private boolean hasBankDetails = false;
@@ -72,6 +73,12 @@ public class ProfileFragment extends Fragment {
         
         Button btnWithdraw = v.findViewById(R.id.btn_withdraw);
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
+        Button btnLogout = v.findViewById(R.id.btn_logout); 
+
+        // ✅ NEW SUPPORT BUTTONS
+        Button btnSupportWa = v.findViewById(R.id.btn_support_wa);
+        Button btnSupportTg = v.findViewById(R.id.btn_support_tg);
+
         TextView btnAddBank = v.findViewById(R.id.btn_add_bank);
         
         layoutSavedBankView = v.findViewById(R.id.layout_saved_bank);
@@ -81,7 +88,7 @@ public class ProfileFragment extends Fragment {
         // Get User Info
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         mobileNumber = prefs.getString("mobile", "");
-        userIdUUID = prefs.getString("userId", ""); // Get the UUID saved in LoginActivity
+        userIdUUID = prefs.getString("userId", ""); 
 
         tvMobile.setText(mobileNumber);
 
@@ -93,14 +100,96 @@ public class ProfileFragment extends Fragment {
             startActivity(new Intent(getActivity(), WithdrawalHistoryActivity.class));
         });
 
+        if (btnLogout != null) {
+            btnLogout.setOnClickListener(view -> showLogoutConfirmation());
+        }
+
+        // ✅ SUPPORT LISTENERS
+        if (btnSupportWa != null) {
+            btnSupportWa.setOnClickListener(view -> fetchAndOpenLink("support_whatsapp"));
+        }
+        if (btnSupportTg != null) {
+            btnSupportTg.setOnClickListener(view -> fetchAndOpenLink("support_telegram"));
+        }
+
         return v;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        fetchUserData(); // Refresh data every time user comes to this screen
+        fetchUserData(); 
     }
+
+    // ==========================================
+    // 1. SUPPORT LOGIC (NEW)
+    // ==========================================
+    private void fetchAndOpenLink(String configKey) {
+        // Show loading toast
+        Toast.makeText(getContext(), "Opening...", Toast.LENGTH_SHORT).show();
+
+        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + configKey)
+            .enqueue(new Callback<List<AppConfigModel>>() {
+                @Override
+                public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
+                    String url = "";
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        Object val = response.body().get(0).value;
+                        if (val instanceof LinkedTreeMap) {
+                            LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
+                            if (map.containsKey("url")) url = (String) map.get("url");
+                        }
+                    }
+
+                    if (url.length() > 0 && !url.equals("#")) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            Toast.makeText(getContext(), "Could not open link", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(getContext(), "Support link coming soon!", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
+                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                }
+            });
+    }
+
+    // ==========================================
+    // 2. LOGOUT LOGIC
+    // ==========================================
+    private void showLogoutConfirmation() {
+        new AlertDialog.Builder(getContext())
+            .setTitle("Logout")
+            .setMessage("Are you sure you want to logout?")
+            .setPositiveButton("LOGOUT", (dialog, which) -> {
+                performLogout();
+            })
+            .setNegativeButton("CANCEL", null)
+            .show();
+    }
+
+    private void performLogout() {
+        if (getActivity() == null) return;
+
+        SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.clear(); 
+        editor.apply();
+
+        Intent intent = new Intent(getActivity(), LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+    }
+
+    // ==========================================
+    // 3. USER DATA & BANK LOGIC
+    // ==========================================
 
     private void fetchUserData() {
         if (mobileNumber.isEmpty()) return;
@@ -112,12 +201,9 @@ public class ProfileFragment extends Fragment {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
                         
-                        // Update Balance
                         currentBalance = user.getBalance();
                         tvBalance.setText(String.format("₹ %.2f", currentBalance));
 
-                        // Check for Bank Details (Stored as JSONB in Supabase)
-                        // Gson converts JSONB object to LinkedTreeMap
                         Object bankObj = user.bankDetails; 
                         
                         if (bankObj instanceof LinkedTreeMap) {
@@ -131,15 +217,10 @@ public class ProfileFragment extends Fragment {
                         }
                     }
                 }
-
-                @Override
-                public void onFailure(Call<List<UserModel>> call, Throwable t) {
-                    // Fail silently or show error
-                }
+                @Override public void onFailure(Call<List<UserModel>> call, Throwable t) {}
             });
     }
 
-    // --- BANK DETAILS DIALOG ---
     private void showAddBankDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_add_bank, null);
@@ -168,14 +249,13 @@ public class ProfileFragment extends Fragment {
     }
 
     private void saveBankDetails(String name, String ac, String ifsc) {
-        // Create the JSON Object for Bank Details
         Map<String, Object> bankDetails = new HashMap<>();
         bankDetails.put("bank_name", name);
         bankDetails.put("account_no", ac);
         bankDetails.put("ifsc", ifsc);
 
         Map<String, Object> updateBody = new HashMap<>();
-        updateBody.put("bank_details", bankDetails); // Matches SQL Column "bank_details"
+        updateBody.put("bank_details", bankDetails);
 
         supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, updateBody)
             .enqueue(new Callback<Void>() {
@@ -183,20 +263,19 @@ public class ProfileFragment extends Fragment {
                 public void onResponse(Call<Void> call, Response<Void> response) {
                     if (response.isSuccessful()) {
                         Toast.makeText(getContext(), "Bank details saved!", Toast.LENGTH_SHORT).show();
-                        fetchUserData(); // Refresh UI
+                        fetchUserData(); 
                     } else {
                         Toast.makeText(getContext(), "Failed to save", Toast.LENGTH_SHORT).show();
                     }
                 }
-
-                @Override
-                public void onFailure(Call<Void> call, Throwable t) {
-                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
-                }
+                @Override public void onFailure(Call<Void> call, Throwable t) {}
             });
     }
 
-    // --- WITHDRAWAL LOGIC ---
+    // ==========================================
+    // 4. WITHDRAWAL LOGIC
+    // ==========================================
+
     private void requestWithdrawal() {
         if (!hasBankDetails) {
             Toast.makeText(getContext(), "Please add bank details first", Toast.LENGTH_LONG).show();
@@ -234,7 +313,6 @@ public class ProfileFragment extends Fragment {
                 btnConfirm.setBackgroundResource(R.drawable.bg_gold_3d);
                 btnConfirm.setTextColor(Color.parseColor("#5D4037")); 
 
-                // Reset other cards
                 for (int i = 0; i < gridLayout.getChildCount(); i++) {
                     View child = gridLayout.getChildAt(i);
                     MaterialCardView c = child.findViewById(R.id.card_amount);
@@ -244,7 +322,6 @@ public class ProfileFragment extends Fragment {
                     t.setTextColor(Color.BLACK);
                 }
 
-                // Highlight selected
                 card.setCardBackgroundColor(Color.parseColor("#FFF8E1"));
                 card.setStrokeColor(Color.parseColor("#FFC107"));
                 tvVal.setTextColor(Color.parseColor("#FF8F00"));
@@ -265,57 +342,50 @@ public class ProfileFragment extends Fragment {
     }
 
     private void processWithdrawal(int amount, AlertDialog parentDialog) {
-    if (userIdUUID.isEmpty()) {
-        Toast.makeText(getContext(), "Relogin required", Toast.LENGTH_SHORT).show();
-        return;
-    }
+        if (userIdUUID.isEmpty()) {
+            Toast.makeText(getContext(), "Relogin required", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-    // ✅ FIX 1: Combine Bank Details to send to Admin
-    String paymentInfo = "";
-    if (tvBankName.getText().toString().length() > 0) {
-        paymentInfo = tvBankName.getText().toString() + " | " + tvBankAc.getText().toString();
-    } else {
-        paymentInfo = "No Bank Details";
-    }
+        String paymentInfo = "";
+        if (tvBankName.getText().toString().length() > 0) {
+            paymentInfo = tvBankName.getText().toString() + " | " + tvBankAc.getText().toString();
+        } else {
+            paymentInfo = "No Bank Details";
+        }
 
-    // 1. Prepare Request Data
-    Map<String, Object> req = new HashMap<>();
-    req.put("user_id", userIdUUID);
-    req.put("amount", amount);
-    req.put("status", "PENDING"); // ✅ Changed to 'PENDING' to match Admin Panel
-    req.put("upi_id", paymentInfo); // ✅ Sending Bank Details here
+        Map<String, Object> req = new HashMap<>();
+        req.put("user_id", userIdUUID);
+        req.put("amount", amount);
+        req.put("status", "PENDING"); 
+        req.put("upi_id", paymentInfo); 
 
-    // Show loading (Optional, prevents double clicking)
-    Toast.makeText(getContext(), "Processing...", Toast.LENGTH_SHORT).show();
+        Toast.makeText(getContext(), "Processing...", Toast.LENGTH_SHORT).show();
 
-    supabaseApi.requestWithdrawal(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, req)
-        .enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    // 2. Deduct Balance Locally
-                    deductBalance(amount);
-                    
-                    parentDialog.dismiss();
-                    showSuccessPopup();
-                } else {
-                    // Print exact error for debugging
-                    try {
-                        String errorBody = response.errorBody().string();
-                        Toast.makeText(getContext(), "Failed: " + errorBody, Toast.LENGTH_LONG).show();
-                    } catch (Exception e) {
-                        Toast.makeText(getContext(), "Request Failed", Toast.LENGTH_SHORT).show();
+        supabaseApi.requestWithdrawal(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, req)
+            .enqueue(new Callback<Void>() {
+                @Override
+                public void onResponse(Call<Void> call, Response<Void> response) {
+                    if (response.isSuccessful()) {
+                        deductBalance(amount);
+                        parentDialog.dismiss();
+                        showSuccessPopup();
+                    } else {
+                        try {
+                            String errorBody = response.errorBody().string();
+                            Toast.makeText(getContext(), "Failed: " + errorBody, Toast.LENGTH_LONG).show();
+                        } catch (Exception e) {
+                            Toast.makeText(getContext(), "Request Failed", Toast.LENGTH_SHORT).show();
+                        }
                     }
                 }
-            }
 
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(getContext(), "Network Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
-}
-
+                @Override
+                public void onFailure(Call<Void> call, Throwable t) {
+                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                }
+            });
+    }
 
     private void deductBalance(int amount) {
         double newBalance = currentBalance - amount;

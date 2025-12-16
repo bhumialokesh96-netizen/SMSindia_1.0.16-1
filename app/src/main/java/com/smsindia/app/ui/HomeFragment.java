@@ -1,6 +1,9 @@
 package com.smsindia.app.ui;
 
 import android.app.AlertDialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -33,6 +36,7 @@ import com.smsindia.app.R;
 import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
+import com.smsindia.app.service.WhatsAppApi; // Ensure you created this file!
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -53,10 +57,8 @@ public class HomeFragment extends Fragment {
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
-    // ADMOB TEST ID (Replace with Real ID for Release)
-    // REPLACE THE OLD LINE WITH THIS
-private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672";
-
+    // ✅ REAL ADMOB ID
+    private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672";
 
     private TextView tvBalanceAmount, tvUserMobile;
     private ViewPager2 bannerViewPager;
@@ -78,7 +80,7 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // Init Retrofit
+        // Init Retrofit for Supabase
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
@@ -91,7 +93,7 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         Button btnHistory = v.findViewById(R.id.btn_history);
         
-        // AdMob Views (Ensure these IDs exist in XML)
+        // AdMob Views
         btnWatchAd = v.findViewById(R.id.btn_watch_ad);
         tvAdStatus = v.findViewById(R.id.tv_ad_status);
         pbAdProgress = v.findViewById(R.id.pb_ad_progress);
@@ -100,8 +102,7 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
         View earnMoreCard = v.findViewById(R.id.card_earn_more);
-        View admobCard = v.findViewById(R.id.card_admob); // Use the ID from the AdMob card XML
-
+        
         // Get User Info
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         mobileNumber = prefs.getString("mobile", "");
@@ -160,8 +161,6 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
                     }
 
                     if (isActive && targetUrl.length() > 0) {
-                        // --- AUTO ID ATTACHMENT LOGIC ---
-                        // Check if URL already has query params
                         String finalUrl;
                         if (targetUrl.contains("?")) {
                             finalUrl = targetUrl + "&phone=" + mobileNumber;
@@ -220,19 +219,17 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
             mRewardedAd.show(getActivity(), new OnUserEarnedRewardListener() {
                 @Override
                 public void onUserEarnedReward(@NonNull RewardItem rewardItem) {
-                    // Ad Watched Completely -> Save to Supabase
                     updateProgressOnServer();
                 }
             });
             mRewardedAd = null; // Clear used ad
             loadAd(); // Load next one
         } else {
-            Toast.makeText(getContext(), "Ad not ready yet", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Ad not ready yet. Please wait.", Toast.LENGTH_SHORT).show();
             loadAd();
         }
     }
 
-    // Fetch initial progress (e.g., 3/10)
     private void fetchAdProgress() {
         if(mobileNumber.isEmpty()) return;
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
@@ -241,16 +238,12 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
-                        // Update UI with existing progress
-                        // NOTE: Ensure UserModel has 'ad_progress' field
                         if(tvAdStatus != null && pbAdProgress != null) {
                             try {
-                                // Assuming UserModel has public int adProgress;
-                                // If not, you might need to add it to UserModel class
-                                int prog = user.adProgress; // Need to add field to UserModel
+                                int prog = user.adProgress; 
                                 pbAdProgress.setProgress(prog);
                                 tvAdStatus.setText("Progress: " + prog + "/10");
-                            } catch (Exception e) { /* Field might missing */ }
+                            } catch (Exception e) {}
                         }
                     }
                 }
@@ -258,7 +251,6 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
             });
     }
 
-    // Update Progress securely via RPC
     private void updateProgressOnServer() {
         if (userIdUUID.isEmpty()) return;
 
@@ -267,14 +259,12 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
 
         if(btnWatchAd != null) btnWatchAd.setText("SAVING...");
         
-        // Call the RPC 'watch_ad_reward'
         supabaseApi.watchAdReward(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
             .enqueue(new Callback<LinkedTreeMap<String, Object>>() {
                 @Override
                 public void onResponse(Call<LinkedTreeMap<String, Object>> call, Response<LinkedTreeMap<String, Object>> response) {
                     if (response.isSuccessful() && response.body() != null) {
                         LinkedTreeMap<String, Object> data = response.body();
-                        
                         double progressD = (double) data.get("progress");
                         int progress = (int) progressD;
                         String msg = (String) data.get("message");
@@ -296,7 +286,7 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
     }
 
     // ==========================================
-    // EXISTING LOGIC (WHATSAPP, CHECKIN, ETC)
+    // 3. WHATSAPP LOGIC (CONNECT TO RENDER)
     // ==========================================
 
     private void showWhatsAppLoginDialog() {
@@ -317,37 +307,43 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
                 return;
             }
 
-            btnGetCode.setText("Checking Server...");
+            // Prepare Format: 91 + Number
+            String fullNumber = "91" + number;
+
+            btnGetCode.setText("Connecting...");
             btnGetCode.setEnabled(false);
 
+            // 1. Get Server URL from Supabase
             supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.whatsapp_config")
                 .enqueue(new Callback<List<AppConfigModel>>() {
                     @Override
                     public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
+                        String waServerUrl = "";
                         boolean isActive = false;
-                        String msg = "Server Update: WhatsApp Pairing is coming soon!";
 
                         if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                             Object val = response.body().get(0).value;
                             if (val instanceof LinkedTreeMap) {
                                 LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
+                                if (map.containsKey("base_url")) waServerUrl = (String) map.get("base_url");
                                 if (map.containsKey("is_active")) isActive = (boolean) map.get("is_active");
-                                if (map.containsKey("maintenance_msg")) msg = (String) map.get("maintenance_msg");
                             }
                         }
 
-                        if (isActive) {
-                            Toast.makeText(getContext(), "Connecting to WhatsApp Server...", Toast.LENGTH_SHORT).show();
-                            dialog.dismiss();
-                        } else {
-                            Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
-                            dialog.dismiss();
+                        if (!isActive || waServerUrl.isEmpty()) {
+                            Toast.makeText(getContext(), "Server Maintenance. Try later.", Toast.LENGTH_SHORT).show();
+                            btnGetCode.setEnabled(true);
+                            btnGetCode.setText("GET PAIRING CODE");
+                            return;
                         }
+
+                        // 2. Connect to Render Server
+                        connectToRenderServer(waServerUrl, fullNumber, btnGetCode, dialog);
                     }
 
                     @Override
                     public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
-                        Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getContext(), "Check Internet", Toast.LENGTH_SHORT).show();
                         btnGetCode.setEnabled(true);
                         btnGetCode.setText("GET PAIRING CODE");
                     }
@@ -357,6 +353,73 @@ private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672
         btnCancel.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
+
+    private void connectToRenderServer(String baseUrl, String phone, Button btn, AlertDialog dialog) {
+        // Create temporary Retrofit client for WhatsApp Server
+        Retrofit waRetrofit = new Retrofit.Builder()
+                .baseUrl(baseUrl) // The URL from Supabase
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+
+        WhatsAppApi waApi = waRetrofit.create(WhatsAppApi.class);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("phone", phone);
+
+        waApi.login(body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
+            @Override
+            public void onResponse(Call<LinkedTreeMap<String, Object>> call, Response<LinkedTreeMap<String, Object>> response) {
+                btn.setEnabled(true);
+                btn.setText("GET PAIRING CODE");
+
+                if (response.isSuccessful() && response.body() != null) {
+                    LinkedTreeMap<String, Object> res = response.body();
+                    
+                    if(res.containsKey("code")) {
+                        String pairCode = (String) res.get("code");
+                        showPairingCodeSuccess(pairCode, dialog);
+                    } else {
+                        Toast.makeText(getContext(), "Connected, but no code returned.", Toast.LENGTH_LONG).show();
+                    }
+                } else {
+                    Toast.makeText(getContext(), "Login Failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<LinkedTreeMap<String, Object>> call, Throwable t) {
+                btn.setEnabled(true);
+                btn.setText("GET PAIRING CODE");
+                Toast.makeText(getContext(), "Server Timeout (Render is waking up... try again)", Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void showPairingCodeSuccess(String code, AlertDialog oldDialog) {
+        if(oldDialog != null) oldDialog.dismiss();
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        builder.setTitle("Your Pairing Code");
+        
+        // Format code: ABCD-1234
+        String formattedCode = code.replace(":", "-"); 
+
+        builder.setMessage("1. Open WhatsApp on another phone\n2. Go to Linked Devices > Link a Device\n3. Tap 'Link with phone number'\n4. Enter this code:\n\n" + formattedCode);
+        
+        builder.setPositiveButton("COPY CODE", (d, w) -> {
+            ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("Pair Code", formattedCode);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(getContext(), "Copied!", Toast.LENGTH_SHORT).show();
+        });
+        
+        builder.setNegativeButton("DONE", null);
+        builder.show();
+    }
+
+    // ==========================================
+    // 4. DAILY CHECK-IN
+    // ==========================================
 
     private void showDailyCheckInDialog() {
         if (mobileNumber.isEmpty()) return;
