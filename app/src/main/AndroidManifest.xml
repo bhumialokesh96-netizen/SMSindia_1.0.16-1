@@ -34,6 +34,10 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.SMSIndia.NoActionBar"
         tools:targetApi="35">
+        <meta-data
+    android:name="com.google.android.gms.ads.APPLICATION_ID"
+    android:value="ca-app-pub-9828067292234660~7406839347"/>
+
 
         <!-- ✅ THE NEW MINING ENGINE (Must be registered here) -->
         <service

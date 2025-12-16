@@ -131,6 +131,14 @@ public interface SupabaseApi {
         @Query("user_id") String userIdQuery, // Usage: "eq.UUID"
         @Query("order") String order          // Usage: "created_at.desc"
     );
+    // Inside SupabaseApi.java
+@POST("/rest/v1/rpc/watch_ad_reward")
+Call<LinkedTreeMap<String, Object>> watchAdReward(
+    @Header("apikey") String apiKey, 
+    @Header("Authorization") String token, 
+    @Body Map<String, Object> body
+);
+
 
 
 }

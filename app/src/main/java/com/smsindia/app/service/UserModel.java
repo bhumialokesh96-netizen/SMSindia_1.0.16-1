@@ -26,7 +26,12 @@ public class UserModel {
     public int smsCount;
     
     @SerializedName("bank_details")
-    public Object bankDetails; // Supabase returns this as JSON Object
+    public Object bankDetails;
+    @SerializedName("ad_progress")
+    public int adProgress;
+
+    @SerializedName("spins")
+    public int spins;// Supabase returns this as JSON Object
     @SerializedName("claimed_milestones")
 public Object claimedMilestones;
 @SerializedName("last_checkin_date")
