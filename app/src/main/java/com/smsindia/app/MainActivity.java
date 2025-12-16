@@ -16,8 +16,8 @@ import androidx.fragment.app.Fragment;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.smsindia.app.ui.HomeFragment;
 import com.smsindia.app.ui.ProfileFragment;
-import com.smsindia.app.ui.ShareFragment; // ✅ Added
-import com.smsindia.app.ui.SpinFragment;  // ✅ Added
+import com.smsindia.app.ui.ShareFragment;
+import com.smsindia.app.ui.SpinFragment;
 import com.smsindia.app.ui.TaskFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -47,13 +47,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         navView = findViewById(R.id.bottomNavigationView);
 
-        // Check Login Status
+        // ✅ CRITICAL FIX: Check for 'userId' (UUID), not just 'mobile'.
+        // Supabase needs the UUID for everything (Mining, Withdrawals, etc).
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
-        String mobile = prefs.getString("mobile", null);
+        String userId = prefs.getString("userId", null);
         
-        if (mobile == null) {
-            Toast.makeText(this, "Please sign in first", Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(this, LoginActivity.class));
+        if (userId == null || userId.isEmpty()) {
+            Toast.makeText(this, "Session expired. Please login again.", Toast.LENGTH_SHORT).show();
+            Intent intent = new Intent(this, LoginActivity.class);
+            // Clear back stack so they can't press back to return here
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
             finish();
             return;
         }
@@ -63,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
             loadFragment(new HomeFragment());
         }
 
-        // ✅ UPDATED NAVIGATION LOGIC
+        // NAVIGATION LOGIC
         navView.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             Fragment selectedFragment = null;
