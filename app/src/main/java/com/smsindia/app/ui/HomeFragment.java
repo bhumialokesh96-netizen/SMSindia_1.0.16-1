@@ -69,8 +69,11 @@ public class HomeFragment extends Fragment {
         tvUserMobile = v.findViewById(R.id.tv_user_mobile);
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         Button btnHistory = v.findViewById(R.id.btn_history);
+        
+        // Cards
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
+        View earnMoreCard = v.findViewById(R.id.card_earn_more); // <--- NEW CARD ID
 
         // Get User Info
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
@@ -85,6 +88,9 @@ public class HomeFragment extends Fragment {
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         whatsappCard.setOnClickListener(view -> showWhatsAppLoginDialog());
         
+        // NEW LISTENER FOR EARN MORE
+        earnMoreCard.setOnClickListener(view -> openEarnMoreWebTask());
+
         btnHistory.setOnClickListener(view -> {
              startActivity(new Intent(getActivity(), WithdrawalHistoryActivity.class));
         });
@@ -98,7 +104,43 @@ public class HomeFragment extends Fragment {
         fetchUserBalance(); // Refresh balance when returning
     }
 
-    // --- WHATSAPP LOGIC ---
+    // --- NEW: EARN MORE LOGIC ---
+    private void openEarnMoreWebTask() {
+        // Fetch URL from Supabase 'app_config' table with key 'earn_more_config'
+        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
+            .enqueue(new Callback<List<AppConfigModel>>() {
+                @Override
+                public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
+                    String targetUrl = "https://www.google.com"; // Default URL
+                    boolean isActive = false;
+
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        Object val = response.body().get(0).value;
+                        if (val instanceof LinkedTreeMap) {
+                            LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
+                            if (map.containsKey("url")) targetUrl = (String) map.get("url");
+                            if (map.containsKey("is_active")) isActive = (boolean) map.get("is_active");
+                        }
+                    }
+
+                    if (isActive || targetUrl.length() > 0) {
+                        Intent intent = new Intent(getActivity(), WebTaskActivity.class);
+                        intent.putExtra("TARGET_URL", targetUrl);
+                        startActivity(intent);
+                    } else {
+                        Toast.makeText(getContext(), "No extra tasks available right now.", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
+                    // On error, just open default or show error
+                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                }
+            });
+    }
+
+    // --- WHATSAPP LOGIC (Existing) ---
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_whatsapp_login, null);
@@ -160,7 +202,7 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
-    // --- DAILY CHECK-IN ---
+    // --- DAILY CHECK-IN (Existing) ---
     private void showDailyCheckInDialog() {
         if (mobileNumber.isEmpty()) return;
 
@@ -260,7 +302,6 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
-    // ✅ SECURE TRANSACTION METHOD (RPC)
     private void claimReward(int day, int amount, String todayDate, AlertDialog dialog) {
         if (userIdUUID.isEmpty()) return;
 

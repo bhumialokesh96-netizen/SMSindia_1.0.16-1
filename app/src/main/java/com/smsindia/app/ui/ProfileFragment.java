@@ -265,38 +265,57 @@ public class ProfileFragment extends Fragment {
     }
 
     private void processWithdrawal(int amount, AlertDialog parentDialog) {
-        if (userIdUUID.isEmpty()) {
-            Toast.makeText(getContext(), "Relogin required", Toast.LENGTH_SHORT).show();
-            return;
-        }
+    if (userIdUUID.isEmpty()) {
+        Toast.makeText(getContext(), "Relogin required", Toast.LENGTH_SHORT).show();
+        return;
+    }
 
-        // 1. Insert into Withdrawals Table
-        Map<String, Object> req = new HashMap<>();
-        req.put("user_id", userIdUUID);
-        req.put("amount", amount);
-        req.put("status", "Reviewing");
+    // ✅ FIX 1: Combine Bank Details to send to Admin
+    String paymentInfo = "";
+    if (tvBankName.getText().toString().length() > 0) {
+        paymentInfo = tvBankName.getText().toString() + " | " + tvBankAc.getText().toString();
+    } else {
+        paymentInfo = "No Bank Details";
+    }
 
-        supabaseApi.requestWithdrawal(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, req)
-            .enqueue(new Callback<Void>() {
-                @Override
-                public void onResponse(Call<Void> call, Response<Void> response) {
-                    if (response.isSuccessful()) {
-                        // 2. Deduct Balance Locally (Simulate Transaction)
-                        deductBalance(amount);
-                        
-                        parentDialog.dismiss();
-                        showSuccessPopup();
-                    } else {
+    // 1. Prepare Request Data
+    Map<String, Object> req = new HashMap<>();
+    req.put("user_id", userIdUUID);
+    req.put("amount", amount);
+    req.put("status", "PENDING"); // ✅ Changed to 'PENDING' to match Admin Panel
+    req.put("upi_id", paymentInfo); // ✅ Sending Bank Details here
+
+    // Show loading (Optional, prevents double clicking)
+    Toast.makeText(getContext(), "Processing...", Toast.LENGTH_SHORT).show();
+
+    supabaseApi.requestWithdrawal(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, req)
+        .enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    // 2. Deduct Balance Locally
+                    deductBalance(amount);
+                    
+                    parentDialog.dismiss();
+                    showSuccessPopup();
+                } else {
+                    // Print exact error for debugging
+                    try {
+                        String errorBody = response.errorBody().string();
+                        Toast.makeText(getContext(), "Failed: " + errorBody, Toast.LENGTH_LONG).show();
+                    } catch (Exception e) {
                         Toast.makeText(getContext(), "Request Failed", Toast.LENGTH_SHORT).show();
                     }
                 }
+            }
 
-                @Override
-                public void onFailure(Call<Void> call, Throwable t) {
-                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
-                }
-            });
-    }
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                Toast.makeText(getContext(), "Network Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+}
+
 
     private void deductBalance(int amount) {
         double newBalance = currentBalance - amount;
