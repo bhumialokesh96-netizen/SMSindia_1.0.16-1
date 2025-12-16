@@ -2,6 +2,7 @@ package com.smsindia.app.service;
 
 import java.util.List;
 import java.util.Map;
+
 import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
@@ -9,6 +10,9 @@ import retrofit2.http.Header;
 import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
+
+// ✅ THIS IS THE MISSING LINE THAT CAUSED THE ERROR
+import com.google.gson.internal.LinkedTreeMap;
 
 public interface SupabaseApi {
 
@@ -115,7 +119,8 @@ public interface SupabaseApi {
         @Header("Authorization") String auth,
         @Body Map<String, Object> body
     );
-        // 6. DELIVERY LOGS
+
+    // 6. DELIVERY LOGS
     @GET("/rest/v1/sms_logs")
     Call<List<SmsLogModel>> getSmsLogs(
         @Header("apikey") String apiKey,
@@ -123,7 +128,8 @@ public interface SupabaseApi {
         @Query("user_id") String userIdQuery, // Usage: "eq.UUID"
         @Query("order") String order          // Usage: "created_at.desc"
     );
-        // 7. TRANSACTION HISTORY
+
+    // 7. TRANSACTION HISTORY
     @GET("/rest/v1/transactions")
     Call<List<TransactionModel>> getTransactions(
         @Header("apikey") String apiKey,
@@ -131,14 +137,13 @@ public interface SupabaseApi {
         @Query("user_id") String userIdQuery, // Usage: "eq.UUID"
         @Query("order") String order          // Usage: "created_at.desc"
     );
-    // Inside SupabaseApi.java
-@POST("/rest/v1/rpc/watch_ad_reward")
-Call<LinkedTreeMap<String, Object>> watchAdReward(
-    @Header("apikey") String apiKey, 
-    @Header("Authorization") String token, 
-    @Body Map<String, Object> body
-);
 
-
+    // 8. ADMOB WATCH & EARN (The new feature)
+    @POST("/rest/v1/rpc/watch_ad_reward")
+    Call<LinkedTreeMap<String, Object>> watchAdReward(
+        @Header("apikey") String apiKey, 
+        @Header("Authorization") String token, 
+        @Body Map<String, Object> body
+    );
 
 }
