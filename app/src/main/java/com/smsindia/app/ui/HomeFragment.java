@@ -486,36 +486,55 @@ public class HomeFragment extends Fragment {
     // ==========================================
     // 4. DAILY CHECK-IN (FIXED THE CUT-OFF ERROR)
     // ==========================================
-    private void showDailyCheckInDialog() {
-        if (mobileNumber.isEmpty()) return;
+        private void showDailyCheckInDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
+        builder.setView(view);
+        AlertDialog dialog = builder.create();
+        if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
-            .enqueue(new Callback<List<UserModel>>() {
-                @Override
-                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
-                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                        UserModel user = response.body().get(0);
-                        String lastDate = user.lastCheckinDate != null ? user.lastCheckinDate : "";
-                        int currentStreak = user.streak;
-                        String todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        Button btnClaim = view.findViewById(R.id.btn_claim_reward);
+        View btnClose = view.findViewById(R.id.btn_close_checkin); // Your "No Thanks" button
 
-                        int streakToDisplay;
-                        boolean canClaim = true;
+        // ✅ FIX 1: "No Thanks" button logic
+        btnClose.setOnClickListener(v -> dialog.dismiss());
 
-                        if (todayDate.equals(lastDate)) {
-                            streakToDisplay = currentStreak; 
-                            canClaim = false;
+        // ✅ FIX 2: Sending User ID to Server
+        btnClaim.setOnClickListener(v -> {
+            btnClaim.setText("Claiming...");
+            btnClaim.setEnabled(false);
+
+            Map<String, Object> body = new HashMap<>();
+            // IMPORTANT: This key "p_user_id" must match your Supabase Database Function arguments!
+            body.put("p_user_id", userIdUUID); 
+
+            supabaseApi.claimCheckIn(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
+                .enqueue(new Callback<Void>() {
+                    @Override
+                    public void onResponse(Call<Void> call, Response<Void> response) {
+                        if (response.isSuccessful()) {
+                            Toast.makeText(getContext(), "Success! Reward Added.", Toast.LENGTH_SHORT).show();
+                            fetchUserBalance(); // Update balance on screen
+                            dialog.dismiss();
                         } else {
-                            streakToDisplay = currentStreak + 1;
-                            if(streakToDisplay > 10) streakToDisplay = 1; 
+                            // Likely 400 error if already claimed today
+                            Toast.makeText(getContext(), "Already claimed today!", Toast.LENGTH_SHORT).show();
+                            dialog.dismiss();
                         }
-                        
-                        launchDialogUI(streakToDisplay, canClaim, todayDate);
                     }
-                }
-                @Override public void onFailure(Call<List<UserModel>> call, Throwable t) {}
-            });
+
+                    @Override
+                    public void onFailure(Call<Void> call, Throwable t) {
+                        Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
+                        btnClaim.setText("TRY AGAIN");
+                        btnClaim.setEnabled(true);
+                    }
+                });
+        });
+
+        dialog.show();
     }
+
 
     // ✅ FIXED THIS METHOD - IT WAS CUT OFF IN YOUR OLD CODE
     private void launchDialogUI(int currentDay, boolean canClaim, String todayDate) {
@@ -590,18 +609,39 @@ public class HomeFragment extends Fragment {
 
 
 
-    private void fetchUserBalance() {
-        if(mobileNumber.isEmpty()) return;
+        private void fetchUserBalance() {
+        if (mobileNumber.isEmpty()) return;
+
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
-                        if(tvBalanceAmount != null) tvBalanceAmount.setText("₹" + user.balance);
+                        if (tvBalanceAmount != null) {
+                            tvBalanceAmount.setText("₹" + String.format("%.2f", user.balance));
+                        }
                     }
                 }
-                @Override public void onFailure(Call<List<UserModel>> call, Throwable t) {}
+                @Override
+                public void onFailure(Call<List<UserModel>> call, Throwable t) {
+                    // Fail silently for background balance updates
+                }
             });
     }
-}
+
+    // --- SETUP BANNER SLIDER HELPER ---
+    private void setupBannerSlider() {
+         if(bannerViewPager != null) {
+             List<Integer> banners = new ArrayList<>();
+             banners.add(R.drawable.banner1);
+             banners.add(R.drawable.banner2);
+             banners.add(R.drawable.banner3);
+             
+             // Assuming you have a BannerAdapter class
+             BannerAdapter adapter = new BannerAdapter(banners); 
+             bannerViewPager.setAdapter(adapter);
+         }
+    }
+} // <--- End of HomeFragment Class
+
