@@ -11,7 +11,7 @@ import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
 
-// ✅ THIS IS THE MISSING LINE THAT CAUSED THE ERROR
+// Required for the AdMob response
 import com.google.gson.internal.LinkedTreeMap;
 
 public interface SupabaseApi {
@@ -20,19 +20,17 @@ public interface SupabaseApi {
     // 1. TASKS (Mining Logic)
     // ==========================================
 
-    // Fetch a pending task (RPC Call)
     @POST("/rest/v1/rpc/get_one_task")
     Call<List<TaskModel>> getTask(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth
     );
 
-    // Update task status (Sent/Failed/Reset)
     @PATCH("/rest/v1/sms_tasks")
     Call<Void> updateTask(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("id") String query,      // Usage: "eq.TASK_UUID"
+        @Query("id") String query,
         @Body Map<String, Object> body
     );
 
@@ -40,38 +38,33 @@ public interface SupabaseApi {
     // 2. USERS (Login, Profile, Register)
     // ==========================================
 
-    // Get User Profile (Balance, Coins, DeviceID)
     @GET("/rest/v1/users")
     Call<List<UserModel>> getUser(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("phone") String phoneQuery // Usage: "eq.9876543210"
+        @Query("phone") String phoneQuery
     );
 
-    // Register New User
     @POST("/rest/v1/users")
     Call<Void> createUser(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Header("Prefer") String prefer, // Send "return=minimal" to save bandwidth
+        @Header("Prefer") String prefer,
         @Body Map<String, Object> body
     );
 
-    // Update User (e.g., DeviceID, Bank Details, Coins)
     @PATCH("/rest/v1/users")
     Call<Void> updateUser(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("phone") String phoneQuery, // Usage: "eq.9876543210"
+        @Query("phone") String phoneQuery,
         @Body Map<String, Object> body
     );
 
     // ==========================================
-    // 3. REWARDS & MONEY (The Cost Saver 💰)
+    // 3. REWARDS & MONEY
     // ==========================================
 
-    // ✅ CRITICAL: Calls the SQL function 'claim_sms_reward'
-    // Updates balance + inserts log in ONE server call. No Firestore needed.
     @POST("/rest/v1/rpc/claim_sms_reward")
     Call<Void> claimReward(
         @Header("apikey") String apiKey,
@@ -83,16 +76,14 @@ public interface SupabaseApi {
     // 4. WITHDRAWALS
     // ==========================================
 
-    // Get Withdrawal History
     @GET("/rest/v1/withdrawals")
     Call<List<WithdrawModel>> getWithdrawals(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("user_id") String userIdQuery, // Usage: "eq.USER_UUID"
-        @Query("order") String order          // Usage: "created_at.desc"
+        @Query("user_id") String userIdQuery,
+        @Query("order") String order
     );
 
-    // Request New Withdrawal
     @POST("/rest/v1/withdrawals")
     Call<Void> requestWithdrawal(
         @Header("apikey") String apiKey,
@@ -101,18 +92,18 @@ public interface SupabaseApi {
     );
 
     // ==========================================
-    // 5. CONFIG & DAILY BONUS (New Updates ✅)
+    // 5. CONFIG & DAILY BONUS
     // ==========================================
 
-    // Get App Config (WhatsApp Settings)
+    // ✅ This fetches your AdMob IDs & WhatsApp Config
+    // Ensure your table in Supabase is named 'app_config'
     @GET("/rest/v1/app_config")
     Call<List<AppConfigModel>> getConfig(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("key") String keyQuery // Usage: "eq.whatsapp_config"
+        @Query("key") String keyQuery 
     );
 
-    // Claim Daily Check-in (The SQL Function logic)
     @POST("/rest/v1/rpc/claim_daily_checkin")
     Call<Void> claimCheckIn(
         @Header("apikey") String apiKey,
@@ -120,30 +111,35 @@ public interface SupabaseApi {
         @Body Map<String, Object> body
     );
 
-    // 6. DELIVERY LOGS
+    // ==========================================
+    // 6. LOGS & TRANSACTIONS
+    // ==========================================
+
     @GET("/rest/v1/sms_logs")
     Call<List<SmsLogModel>> getSmsLogs(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("user_id") String userIdQuery, // Usage: "eq.UUID"
-        @Query("order") String order          // Usage: "created_at.desc"
+        @Query("user_id") String userIdQuery,
+        @Query("order") String order
     );
 
-    // 7. TRANSACTION HISTORY
     @GET("/rest/v1/transactions")
     Call<List<TransactionModel>> getTransactions(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("user_id") String userIdQuery, // Usage: "eq.UUID"
-        @Query("order") String order          // Usage: "created_at.desc"
+        @Query("user_id") String userIdQuery,
+        @Query("order") String order
     );
 
-    // 8. ADMOB WATCH & EARN (The new feature)
+    // ==========================================
+    // 7. ADMOB WATCH & EARN (UPDATED)
+    // ==========================================
+
+    // Returns a Map/JSON containing { message: "...", progress: 5 }
     @POST("/rest/v1/rpc/watch_ad_reward")
     Call<LinkedTreeMap<String, Object>> watchAdReward(
         @Header("apikey") String apiKey, 
         @Header("Authorization") String token, 
         @Body Map<String, Object> body
     );
-
 }
