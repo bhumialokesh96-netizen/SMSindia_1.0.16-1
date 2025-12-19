@@ -38,6 +38,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 public class SmsMiningService extends Service {
 
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
+    // ⚠️ Ideally, keep this key secure
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
@@ -62,7 +63,6 @@ public class SmsMiningService extends Service {
     
     private SupabaseApi supabaseApi;
     private BroadcastReceiver sentReceiver;
-    private BroadcastReceiver deliveredReceiver;
     private PowerManager.WakeLock wakeLock;
     private long currentRetryDelay = 1000;
 
@@ -211,30 +211,40 @@ public class SmsMiningService extends Service {
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
     }
 
-    // ✅ THE ONLY FUNCTION THAT UPDATES THE DATABASE
+    // ✅ UPDATED: Added Logging and Type Safety
     private void processReward(String phone, String taskId) {
-        if (userId == null) { nextTaskInBatch(); return; }
+        if (userId == null || userId.isEmpty()) { 
+            Log.e("SMS_MINER", "❌ Error: UserId is missing. Cannot claim reward.");
+            nextTaskInBatch(); 
+            return; 
+        }
 
         Map<String, Object> params = new HashMap<>();
         params.put("p_user_id", userId);   
         params.put("p_task_id", taskId);   
         params.put("p_phone", phone);      
-        params.put("p_amount", REWARD);    
+        params.put("p_amount", Double.valueOf(REWARD)); // FORCE DOUBLE TYPE
 
-        // This RPC call does EVERYTHING: Adds Money + Updates Task to 'completed'
+        Log.d("SMS_MINER", "📡 Sending Reward Request for " + phone);
+
         supabaseApi.claimReward("Bearer " + SUPABASE_KEY, SUPABASE_KEY, params)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
-                    if(!response.isSuccessful()) {
-                        Log.e("SMS_MINER", "Reward Failed: " + response.code());
+                    if (response.isSuccessful()) {
+                        Log.d("SMS_MINER", "✅ SUCCESS! Reward Added.");
+                    } else {
+                        Log.e("SMS_MINER", "❌ SERVER ERROR: " + response.code() + " " + response.message());
+                        try {
+                             if(response.errorBody() != null) Log.e("SMS_MINER", "Error Body: " + response.errorBody().string());
+                        } catch(Exception e) {}
                     }
                     nextTaskInBatch();
                 }
 
                 @Override
                 public void onFailure(Call<Void> call, Throwable t) {
-                    Log.e("SMS_MINER", "Network Fail on Reward");
+                    Log.e("SMS_MINER", "❌ NETWORK FAIL: " + t.getMessage());
                     nextTaskInBatch();
                 }
             });
