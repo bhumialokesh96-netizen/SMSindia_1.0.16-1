@@ -29,27 +29,41 @@ jobs:
       - name: Grant execute permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      # --- AUTO VERSIONING HAPPENS HERE ---
+      - name: Build Release APK
+        env:
+          # This passes the GitHub Run Number (e.g., 50) to Gradle
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./gradlew assembleRelease
 
-      # 1. Rename APK & Get Date
+      # --- Sign the APK ---
+      - name: Sign Release APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY_STORE_BASE64 }}
+          alias: ${{ secrets.SIGNING_KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
+      # --- Rename & Notify ---
       - name: Prepare File Info
         run: |
-          # Create Version Tag
+          # Use the Run Number for the filename too
           VERSION_TAG="v1.0.${{ github.run_number }}"
           
-          # Rename File
-          cd app/build/outputs/apk/debug/
-          mv app-debug.apk SMSindia_$VERSION_TAG.apk
+          # Get signed file path
+          SIGNED_FILE="${{ steps.sign_app.outputs.signedReleaseFile }}"
+          NEW_NAME="SMSindia_$VERSION_TAG.apk"
           
-          # Save Variables for next steps
-          echo "APK_PATH=app/build/outputs/apk/debug/SMSindia_$VERSION_TAG.apk" >> $GITHUB_ENV
+          mv "$SIGNED_FILE" "$NEW_NAME"
+          
+          echo "APK_PATH=$NEW_NAME" >> $GITHUB_ENV
           echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
-          
-          # Get Today's Date
           echo "BUILD_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
 
-      # 2. Upload to GitHub (Private Backup)
+      # Upload to GitHub
       - name: Create Private Release
         uses: softprops/action-gh-release@v1
         with:
@@ -58,14 +72,11 @@ jobs:
           files: ${{ env.APK_PATH }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 3. SEND ANNOUNCEMENT TO TELEGRAM 🚀
+      # Send to Telegram
       - name: Send Announcement
         run: |
-          # define the message with HTML formatting
-          # %0A means New Line
-          CAPTION="🚀 <b>NEW UPDATE AVAILABLE!</b>%0A%0A📦 <b>App:</b> SMS India%0A🏷 <b>Version:</b> ${{ env.VERSION_TAG }}%0A📅 <b>Date:</b> ${{ env.BUILD_DATE }}%0A%0A✨ <b>What's New:</b>%0A• Performance Improved%0A• Bug Fixes%0A• Instant Withdrawals%0A%0A👇 <b>Download & Install Now:</b>"
+          CAPTION="🚀 <b>NEW UPDATE AVAILABLE!</b>%0A%0A📦 <b>App:</b> SMS India%0A🏷 <b>Version:</b> ${{ env.VERSION_TAG }}%0A📅 <b>Date:</b> ${{ env.BUILD_DATE }}%0A%0A✨ <b>What's New:</b>%0A• Performance Improved%0A• Auto-Updates Enabled%0A%0A👇 <b>Download & Install Now:</b>"
 
-          # Send to Telegram
           curl -v -F "chat_id=${{ secrets.TELEGRAM_TO }}" \
           -F "document=@${{ env.APK_PATH }}" \
           -F "parse_mode=HTML" \

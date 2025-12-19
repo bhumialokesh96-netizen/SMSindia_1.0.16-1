@@ -57,11 +57,10 @@ public class HomeFragment extends Fragment {
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
-    // --- UPDATED: Dynamic Ad Variables ---
-    // We removed the static AD_UNIT_ID and added this list logic
+    // --- UPDATE: DYNAMIC AD VARIABLES (Replaces static ID) ---
     private List<String> adUnitList = new ArrayList<>();
-    private int currentAdIndex = 0; 
-    private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917"; // Test ID for backup
+    private int currentAdIndex = 0;
+    private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917";
 
     private TextView tvBalanceAmount, tvUserMobile;
     private ViewPager2 bannerViewPager;
@@ -113,22 +112,23 @@ public class HomeFragment extends Fragment {
 
         tvUserMobile.setText(mobileNumber);
 
+        // --- 1. SETUP BANNER (Fixing the issue where banner wasn't showing) ---
         setupBannerSlider();
 
-        // --- INIT ADMOB & FETCH IDs ---
+        // --- 2. INIT ADMOB & FETCH CONFIG ---
         MobileAds.initialize(getContext(), initializationStatus -> {});
         
-        // NEW: Fetch IDs from Supabase first
+        // Fetch IDs from Supabase first
         fetchAdConfiguration(); 
         
-        fetchAdProgress(); // Get current 0/10 status
+        // Get progress
+        fetchAdProgress(); 
 
         // Click Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         whatsappCard.setOnClickListener(view -> showWhatsAppLoginDialog());
         earnMoreCard.setOnClickListener(view -> openEarnMoreWebTask());
         
-        // AdMob Listener
         if(btnWatchAd != null) {
             btnWatchAd.setOnClickListener(view -> showAd());
         }
@@ -147,7 +147,7 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 1. EARN MORE LOGIC (AUTO-LOGIN URL)
+    // 1. EARN MORE LOGIC (Kept Exactly Same)
     // ==========================================
     private void openEarnMoreWebTask() {
         supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
@@ -190,10 +190,10 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 2. ADMOB LOGIC (UPDATED: MULTI-UNIT ROTATION)
+    // 2. ADMOB LOGIC (UPDATED: Multi-Unit Waterfall)
     // ==========================================
     
-    // Step A: Fetch the list of IDs from Supabase
+    // Step A: Fetch List from Supabase
     private void fetchAdConfiguration() {
         if(btnWatchAd != null) {
             btnWatchAd.setEnabled(false);
@@ -219,17 +219,15 @@ public class HomeFragment extends Fragment {
                             }
                         }
                     }
-                    // If we found IDs, start loading. If not, use Test ID.
                     if (foundIds && !adUnitList.isEmpty()) {
-                        loadAd(); 
+                        loadAd(); // IDs found, load first one
                     } else {
-                        useFallbackAds();
+                        useFallbackAds(); // No IDs, use test
                     }
                 }
-
                 @Override
                 public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
-                    useFallbackAds(); // No internet -> Use Test ID
+                    useFallbackAds();
                 }
             });
     }
@@ -240,16 +238,16 @@ public class HomeFragment extends Fragment {
         loadAd();
     }
 
-    // Step B: Load Ad (With Waterfall Logic)
+    // Step B: Load Ads with Rotation Logic
     private void loadAd() {
-        if(adUnitList.isEmpty() || getContext() == null) return;
-        
+        if (adUnitList.isEmpty() || getContext() == null) return;
+
         if(btnWatchAd != null) {
             btnWatchAd.setText("LOADING...");
             btnWatchAd.setEnabled(false);
         }
         
-        // Get the specific ID from the list based on current index
+        // Get Current ID
         String currentId = adUnitList.get(currentAdIndex);
         
         AdRequest adRequest = new AdRequest.Builder().build();
@@ -259,13 +257,13 @@ public class HomeFragment extends Fragment {
                 public void onAdFailedToLoad(@NonNull LoadAdError loadAdError) {
                     mRewardedAd = null;
                     
-                    // --- WATERFALL LOGIC: Try next ID if available ---
+                    // --- WATERFALL: Try next ID if available ---
                     if (currentAdIndex < adUnitList.size() - 1) {
                         currentAdIndex++; 
-                        loadAd(); // Try next ID immediately
+                        loadAd(); // Recursive retry
                     } else {
-                        // All IDs failed
-                        currentAdIndex = 0; // Reset for next time
+                        // All failed
+                        currentAdIndex = 0; 
                         if(getContext() != null && btnWatchAd != null) {
                             btnWatchAd.setText("RETRY");
                             btnWatchAd.setEnabled(true);
@@ -276,8 +274,7 @@ public class HomeFragment extends Fragment {
                 @Override
                 public void onAdLoaded(@NonNull RewardedAd rewardedAd) {
                     mRewardedAd = rewardedAd;
-                    currentAdIndex = 0; // Success! Reset to 0 for next user interaction
-                    
+                    currentAdIndex = 0; // Success! Reset index
                     if(getContext() != null && btnWatchAd != null) {
                         btnWatchAd.setText("WATCH");
                         btnWatchAd.setEnabled(true);
@@ -295,9 +292,9 @@ public class HomeFragment extends Fragment {
                 }
             });
             mRewardedAd = null; // Clear used ad
-            loadAd(); // Load next one immediately
+            loadAd(); // Load next one
         } else {
-            Toast.makeText(getContext(), "Ad not ready yet. Reloading...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Ad loading...", Toast.LENGTH_SHORT).show();
             loadAd();
         }
     }
@@ -358,9 +355,8 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 3. WHATSAPP LOGIC (CONNECT TO RENDER)
+    // 3. WHATSAPP LOGIC (Kept Exactly Same)
     // ==========================================
-
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_whatsapp_login, null);
@@ -427,9 +423,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void connectToRenderServer(String baseUrl, String phone, Button btn, AlertDialog dialog) {
-        // Create temporary Retrofit client for WhatsApp Server
         Retrofit waRetrofit = new Retrofit.Builder()
-                .baseUrl(baseUrl) // The URL from Supabase
+                .baseUrl(baseUrl)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
 
@@ -473,7 +468,6 @@ public class HomeFragment extends Fragment {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         builder.setTitle("Your Pairing Code");
         
-        // Format code: ABCD-1234
         String formattedCode = code.replace(":", "-"); 
 
         builder.setMessage("1. Open WhatsApp on another phone\n2. Go to Linked Devices > Link a Device\n3. Tap 'Link with phone number'\n4. Enter this code:\n\n" + formattedCode);
@@ -490,9 +484,8 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 4. DAILY CHECK-IN
+    // 4. DAILY CHECK-IN (FIXED THE CUT-OFF ERROR)
     // ==========================================
-
     private void showDailyCheckInDialog() {
         if (mobileNumber.isEmpty()) return;
 
@@ -524,6 +517,7 @@ public class HomeFragment extends Fragment {
             });
     }
 
+    // ✅ FIXED THIS METHOD - IT WAS CUT OFF IN YOUR OLD CODE
     private void launchDialogUI(int currentDay, boolean canClaim, String todayDate) {
         if(getContext() == null) return;
         
@@ -533,35 +527,62 @@ public class HomeFragment extends Fragment {
         AlertDialog dialog = builder.create();
         if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
-        // Find the button inside the dialog
+        // Assuming your XML has a button with ID 'btn_claim_reward'
         Button btnClaim = view.findViewById(R.id.btn_claim_reward);
         if(btnClaim != null) {
             if(!canClaim) {
-                btnClaim.setText("ALREADY CLAIMED");
+                btnClaim.setText("CHECKED IN");
                 btnClaim.setEnabled(false);
             } else {
                 btnClaim.setText("CLAIM DAY " + currentDay);
                 btnClaim.setOnClickListener(v -> {
                     btnClaim.setEnabled(false);
                     btnClaim.setText("CLAIMING...");
-                    
-                    // Call API to claim (ensure you have this logic in your code or add it)
-                    // For now, we dismiss since the API call logic was not in your original snippet
-                    Toast.makeText(getContext(), "Claimed Day " + currentDay, Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
-                    
-                    // Trigger RPC Call if you have it implemented, otherwise just UI
-                    // performClaimCheckIn(currentDay); 
+                    performDailyCheckin(currentDay, dialog);
                 });
             }
         }
         
         dialog.show();
     }
+
+    private void performDailyCheckin(int day, AlertDialog dialog) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("p_user_id", userIdUUID);
+
+        supabaseApi.claimCheckIn(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
+            .enqueue(new Callback<Void>() {
+                @Override
+                public void onResponse(Call<Void> call, Response<Void> response) {
+                    if(response.isSuccessful()) {
+                        Toast.makeText(getContext(), "Claimed Day " + day + "!", Toast.LENGTH_SHORT).show();
+                        fetchUserBalance(); // Update UI
+                        dialog.dismiss();
+                    } else {
+                        Toast.makeText(getContext(), "Failed. Try again.", Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+                    }
+                }
+                @Override public void onFailure(Call<Void> call, Throwable t) {
+                    dialog.dismiss();
+                }
+            });
+    }
+
+    // ==========================================
+    // HELPER METHODS
+    // ==========================================
     
-    // --- HELPER METHODS ---
+    // ✅ ADDED THIS BACK TO FIX "BANNER NOT SHOWING"
     private void setupBannerSlider() {
-        // Your slider logic (empty as per previous code)
+        if(bannerViewPager != null && getContext() != null) {
+             List<Integer> banners = new ArrayList<>();
+             banners.add(R.drawable.banner1);
+             banners.add(R.drawable.banner2);
+             // Ensure you have BannerAdapter created. If not, this line needs your Adapter class.
+             BannerAdapter adapter = new BannerAdapter(getContext(), banners);
+             bannerViewPager.setAdapter(adapter);
+        }
     }
 
     private void fetchUserBalance() {
