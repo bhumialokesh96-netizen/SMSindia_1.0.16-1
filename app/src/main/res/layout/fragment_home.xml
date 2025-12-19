@@ -60,6 +60,7 @@
         </LinearLayout>
 
         <!-- BALANCE CARD (Overlapping) -->
+                <!-- BALANCE CARD -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -99,6 +100,31 @@
                         android:textSize="28sp"
                         android:textStyle="bold"
                         android:textColor="#1B5E20"/>
+
+                    <!-- THIS FIXES THE XML ID ERRORS -->
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="5dp">
+                        
+                        <TextView
+                            android:id="@+id/tv_today_earnings"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Today: ₹0.00"
+                            android:textSize="11sp"
+                            android:textColor="#43A047"
+                            android:layout_marginEnd="10dp"/>
+
+                        <TextView
+                            android:id="@+id/tv_total_earnings"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Total: ₹0.00"
+                            android:textSize="11sp"
+                            android:textColor="#1B5E20"/>
+                    </LinearLayout>
                 </LinearLayout>
 
                 <Button
@@ -112,6 +138,7 @@
                     android:textColor="#FF6F00"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
+
 
         <!-- DAILY CHECK-IN CARD -->
         <com.google.android.material.card.MaterialCardView
