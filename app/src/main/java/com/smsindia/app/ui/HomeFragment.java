@@ -38,12 +38,9 @@ import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
 import com.smsindia.app.service.WhatsAppApi;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import retrofit2.Call;
@@ -57,7 +54,7 @@ public class HomeFragment extends Fragment {
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
-    // --- UPDATE: DYNAMIC AD VARIABLES (Replaces static ID) ---
+    // --- ADMOB VARIABLES ---
     private List<String> adUnitList = new ArrayList<>();
     private int currentAdIndex = 0;
     private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917";
@@ -75,14 +72,11 @@ public class HomeFragment extends Fragment {
     private String mobileNumber;
     private String userIdUUID; 
 
-    // Rewards for 10 Days
-    private final int[] DAILY_REWARDS = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
-
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // Init Retrofit for Supabase
+        // Init Retrofit
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
@@ -112,16 +106,11 @@ public class HomeFragment extends Fragment {
 
         tvUserMobile.setText(mobileNumber);
 
-        // --- 1. SETUP BANNER (Fixing the issue where banner wasn't showing) ---
         setupBannerSlider();
 
-        // --- 2. INIT ADMOB & FETCH CONFIG ---
+        // --- INIT ADMOB ---
         MobileAds.initialize(getContext(), initializationStatus -> {});
-        
-        // Fetch IDs from Supabase first
         fetchAdConfiguration(); 
-        
-        // Get progress
         fetchAdProgress(); 
 
         // Click Listeners
@@ -143,11 +132,11 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        fetchUserBalance(); // Refresh balance when returning
+        fetchUserBalance(); 
     }
 
     // ==========================================
-    // 1. EARN MORE LOGIC (Kept Exactly Same)
+    // 1. EARN MORE LOGIC
     // ==========================================
     private void openEarnMoreWebTask() {
         supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
@@ -167,13 +156,7 @@ public class HomeFragment extends Fragment {
                     }
 
                     if (isActive && targetUrl.length() > 0) {
-                        String finalUrl;
-                        if (targetUrl.contains("?")) {
-                            finalUrl = targetUrl + "&phone=" + mobileNumber;
-                        } else {
-                            finalUrl = targetUrl + "?phone=" + mobileNumber;
-                        }
-                        
+                        String finalUrl = targetUrl.contains("?") ? targetUrl + "&phone=" + mobileNumber : targetUrl + "?phone=" + mobileNumber;
                         Intent intent = new Intent(getActivity(), WebTaskActivity.class);
                         intent.putExtra("TARGET_URL", finalUrl);
                         startActivity(intent);
@@ -190,10 +173,8 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 2. ADMOB LOGIC (UPDATED: Multi-Unit Waterfall)
+    // 2. ADMOB LOGIC
     // ==========================================
-    
-    // Step A: Fetch List from Supabase
     private void fetchAdConfiguration() {
         if(btnWatchAd != null) {
             btnWatchAd.setEnabled(false);
@@ -220,9 +201,9 @@ public class HomeFragment extends Fragment {
                         }
                     }
                     if (foundIds && !adUnitList.isEmpty()) {
-                        loadAd(); // IDs found, load first one
+                        loadAd(); 
                     } else {
-                        useFallbackAds(); // No IDs, use test
+                        useFallbackAds(); 
                     }
                 }
                 @Override
@@ -238,7 +219,6 @@ public class HomeFragment extends Fragment {
         loadAd();
     }
 
-    // Step B: Load Ads with Rotation Logic
     private void loadAd() {
         if (adUnitList.isEmpty() || getContext() == null) return;
 
@@ -247,22 +227,17 @@ public class HomeFragment extends Fragment {
             btnWatchAd.setEnabled(false);
         }
         
-        // Get Current ID
         String currentId = adUnitList.get(currentAdIndex);
-        
         AdRequest adRequest = new AdRequest.Builder().build();
         RewardedAd.load(getContext(), currentId, adRequest,
             new RewardedAdLoadCallback() {
                 @Override
                 public void onAdFailedToLoad(@NonNull LoadAdError loadAdError) {
                     mRewardedAd = null;
-                    
-                    // --- WATERFALL: Try next ID if available ---
                     if (currentAdIndex < adUnitList.size() - 1) {
                         currentAdIndex++; 
-                        loadAd(); // Recursive retry
+                        loadAd(); 
                     } else {
-                        // All failed
                         currentAdIndex = 0; 
                         if(getContext() != null && btnWatchAd != null) {
                             btnWatchAd.setText("RETRY");
@@ -274,7 +249,7 @@ public class HomeFragment extends Fragment {
                 @Override
                 public void onAdLoaded(@NonNull RewardedAd rewardedAd) {
                     mRewardedAd = rewardedAd;
-                    currentAdIndex = 0; // Success! Reset index
+                    currentAdIndex = 0; 
                     if(getContext() != null && btnWatchAd != null) {
                         btnWatchAd.setText("WATCH");
                         btnWatchAd.setEnabled(true);
@@ -291,8 +266,8 @@ public class HomeFragment extends Fragment {
                     updateProgressOnServer();
                 }
             });
-            mRewardedAd = null; // Clear used ad
-            loadAd(); // Load next one
+            mRewardedAd = null; 
+            loadAd(); 
         } else {
             Toast.makeText(getContext(), "Ad loading...", Toast.LENGTH_SHORT).show();
             loadAd();
@@ -322,7 +297,6 @@ public class HomeFragment extends Fragment {
 
     private void updateProgressOnServer() {
         if (userIdUUID.isEmpty()) return;
-
         Map<String, Object> body = new HashMap<>();
         body.put("p_user_id", userIdUUID);
 
@@ -340,7 +314,6 @@ public class HomeFragment extends Fragment {
                         
                         if(pbAdProgress != null) pbAdProgress.setProgress(progress);
                         if(tvAdStatus != null) tvAdStatus.setText("Progress: " + progress + "/10");
-                        
                         Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
                     }
                     if(btnWatchAd != null) btnWatchAd.setText("WATCH");
@@ -348,14 +321,14 @@ public class HomeFragment extends Fragment {
 
                 @Override
                 public void onFailure(Call<LinkedTreeMap<String, Object>> call, Throwable t) {
-                    Toast.makeText(getContext(), "Network Error. Progress not saved.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getContext(), "Network Error.", Toast.LENGTH_SHORT).show();
                     if(btnWatchAd != null) btnWatchAd.setText("WATCH");
                 }
             });
     }
 
     // ==========================================
-    // 3. WHATSAPP LOGIC (Kept Exactly Same)
+    // 3. WHATSAPP LOGIC
     // ==========================================
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
@@ -374,21 +347,16 @@ public class HomeFragment extends Fragment {
                 etNumber.setError("Enter valid 10-digit number");
                 return;
             }
-
-            // Prepare Format: 91 + Number
             String fullNumber = "91" + number;
-
             btnGetCode.setText("Connecting...");
             btnGetCode.setEnabled(false);
 
-            // 1. Get Server URL from Supabase
             supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.whatsapp_config")
                 .enqueue(new Callback<List<AppConfigModel>>() {
                     @Override
                     public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
                         String waServerUrl = "";
                         boolean isActive = false;
-
                         if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                             Object val = response.body().get(0).value;
                             if (val instanceof LinkedTreeMap) {
@@ -397,18 +365,14 @@ public class HomeFragment extends Fragment {
                                 if (map.containsKey("is_active")) isActive = (boolean) map.get("is_active");
                             }
                         }
-
                         if (!isActive || waServerUrl.isEmpty()) {
-                            Toast.makeText(getContext(), "Server Maintenance. Try later.", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(getContext(), "Server Maintenance.", Toast.LENGTH_SHORT).show();
                             btnGetCode.setEnabled(true);
                             btnGetCode.setText("GET PAIRING CODE");
                             return;
                         }
-
-                        // 2. Connect to Render Server
                         connectToRenderServer(waServerUrl, fullNumber, btnGetCode, dialog);
                     }
-
                     @Override
                     public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
                         Toast.makeText(getContext(), "Check Internet", Toast.LENGTH_SHORT).show();
@@ -423,13 +387,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void connectToRenderServer(String baseUrl, String phone, Button btn, AlertDialog dialog) {
-        Retrofit waRetrofit = new Retrofit.Builder()
-                .baseUrl(baseUrl)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
+        Retrofit waRetrofit = new Retrofit.Builder().baseUrl(baseUrl).addConverterFactory(GsonConverterFactory.create()).build();
         WhatsAppApi waApi = waRetrofit.create(WhatsAppApi.class);
-
         Map<String, Object> body = new HashMap<>();
         body.put("phone", phone);
 
@@ -438,55 +397,60 @@ public class HomeFragment extends Fragment {
             public void onResponse(Call<LinkedTreeMap<String, Object>> call, Response<LinkedTreeMap<String, Object>> response) {
                 btn.setEnabled(true);
                 btn.setText("GET PAIRING CODE");
-
                 if (response.isSuccessful() && response.body() != null) {
                     LinkedTreeMap<String, Object> res = response.body();
-                    
                     if(res.containsKey("code")) {
                         String pairCode = (String) res.get("code");
                         showPairingCodeSuccess(pairCode, dialog);
                     } else {
-                        Toast.makeText(getContext(), "Connected, but no code returned.", Toast.LENGTH_LONG).show();
+                        Toast.makeText(getContext(), "No code returned.", Toast.LENGTH_LONG).show();
                     }
                 } else {
                     Toast.makeText(getContext(), "Login Failed: " + response.code(), Toast.LENGTH_SHORT).show();
                 }
             }
-
             @Override
             public void onFailure(Call<LinkedTreeMap<String, Object>> call, Throwable t) {
                 btn.setEnabled(true);
                 btn.setText("GET PAIRING CODE");
-                Toast.makeText(getContext(), "Server Timeout (Render is waking up... try again)", Toast.LENGTH_LONG).show();
+                Toast.makeText(getContext(), "Server Timeout (Render is starting up...)", Toast.LENGTH_LONG).show();
             }
         });
     }
+
+    // ==========================================
+    // 4. MISSING METHODS (Now Included!)
+    // ==========================================
 
     private void showPairingCodeSuccess(String code, AlertDialog oldDialog) {
         if(oldDialog != null) oldDialog.dismiss();
 
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        builder.setTitle("Your Pairing Code");
-        
-        String formattedCode = code.replace(":", "-"); 
+        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_pairing_code, null);
+        builder.setView(view);
+        AlertDialog dialog = builder.create();
+        if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
-        builder.setMessage("1. Open WhatsApp on another phone\n2. Go to Linked Devices > Link a Device\n3. Tap 'Link with phone number'\n4. Enter this code:\n\n" + formattedCode);
-        
-        builder.setPositiveButton("COPY CODE", (d, w) -> {
-            ClipboardManager clipboard = (ClipboardManager) requireContext().getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("Pair Code", formattedCode);
+        TextView tvCode = view.findViewById(R.id.tv_pairing_code);
+        Button btnCopy = view.findViewById(R.id.btn_copy_code);
+        Button btnClose = view.findViewById(R.id.btn_close_dialog);
+
+        tvCode.setText(code);
+
+        btnCopy.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("Pairing Code", code);
             clipboard.setPrimaryClip(clip);
-            Toast.makeText(getContext(), "Copied!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Code Copied!", Toast.LENGTH_SHORT).show();
         });
-        
-        builder.setNegativeButton("DONE", null);
-        builder.show();
+
+        // FIX: Close the dialog
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
     }
 
-    // ==========================================
-    // 4. DAILY CHECK-IN (FIXED THE CUT-OFF ERROR)
-    // ==========================================
-        private void showDailyCheckInDialog() {
+    private void showDailyCheckInDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
         builder.setView(view);
@@ -494,18 +458,17 @@ public class HomeFragment extends Fragment {
         if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
         Button btnClaim = view.findViewById(R.id.btn_claim_reward);
-        View btnClose = view.findViewById(R.id.btn_close_checkin); // Your "No Thanks" button
+        View btnClose = view.findViewById(R.id.btn_close_checkin);
 
-        // ✅ FIX 1: "No Thanks" button logic
+        // FIX: Close the dialog
         btnClose.setOnClickListener(v -> dialog.dismiss());
 
-        // ✅ FIX 2: Sending User ID to Server
         btnClaim.setOnClickListener(v -> {
             btnClaim.setText("Claiming...");
             btnClaim.setEnabled(false);
 
+            // FIX: Sending User ID
             Map<String, Object> body = new HashMap<>();
-            // IMPORTANT: This key "p_user_id" must match your Supabase Database Function arguments!
             body.put("p_user_id", userIdUUID); 
 
             supabaseApi.claimCheckIn(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
@@ -514,10 +477,9 @@ public class HomeFragment extends Fragment {
                     public void onResponse(Call<Void> call, Response<Void> response) {
                         if (response.isSuccessful()) {
                             Toast.makeText(getContext(), "Success! Reward Added.", Toast.LENGTH_SHORT).show();
-                            fetchUserBalance(); // Update balance on screen
+                            fetchUserBalance(); 
                             dialog.dismiss();
                         } else {
-                            // Likely 400 error if already claimed today
                             Toast.makeText(getContext(), "Already claimed today!", Toast.LENGTH_SHORT).show();
                             dialog.dismiss();
                         }
@@ -535,81 +497,7 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
-
-    // ✅ FIXED THIS METHOD - IT WAS CUT OFF IN YOUR OLD CODE
-    private void launchDialogUI(int currentDay, boolean canClaim, String todayDate) {
-        if(getContext() == null) return;
-        
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
-        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
-        builder.setView(view);
-        AlertDialog dialog = builder.create();
-        if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-
-        // Assuming your XML has a button with ID 'btn_claim_reward'
-        Button btnClaim = view.findViewById(R.id.btn_claim_reward);
-        if(btnClaim != null) {
-            if(!canClaim) {
-                btnClaim.setText("CHECKED IN");
-                btnClaim.setEnabled(false);
-            } else {
-                btnClaim.setText("CLAIM DAY " + currentDay);
-                btnClaim.setOnClickListener(v -> {
-                    btnClaim.setEnabled(false);
-                    btnClaim.setText("CLAIMING...");
-                    performDailyCheckin(currentDay, dialog);
-                });
-            }
-        }
-        
-        dialog.show();
-    }
-
-    private void performDailyCheckin(int day, AlertDialog dialog) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("p_user_id", userIdUUID);
-
-        supabaseApi.claimCheckIn(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
-            .enqueue(new Callback<Void>() {
-                @Override
-                public void onResponse(Call<Void> call, Response<Void> response) {
-                    if(response.isSuccessful()) {
-                        Toast.makeText(getContext(), "Claimed Day " + day + "!", Toast.LENGTH_SHORT).show();
-                        fetchUserBalance(); // Update UI
-                        dialog.dismiss();
-                    } else {
-                        Toast.makeText(getContext(), "Failed. Try again.", Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                    }
-                }
-                @Override public void onFailure(Call<Void> call, Throwable t) {
-                    dialog.dismiss();
-                }
-            });
-    }
-
-    // ==========================================
-    // HELPER METHODS
-    // ==========================================
-    
-    // ✅ ADDED THIS BACK TO FIX "BANNER NOT SHOWING"
-        private void setupBannerSlider() {
-    if(bannerViewPager != null) { // Removed getContext check, not needed strictly here
-         List<Integer> banners = new ArrayList<>();
-         banners.add(R.drawable.banner1);
-         banners.add(R.drawable.banner2);
-         banners.add(R.drawable.banner3); // ⚠️ Make sure banner3.xml exists!
-         
-         // ✅ FIXED LINE: Only pass the list
-         BannerAdapter adapter = new BannerAdapter(banners);
-         
-         bannerViewPager.setAdapter(adapter);
-    }
-}
-
-
-
-        private void fetchUserBalance() {
+    private void fetchUserBalance() {
         if (mobileNumber.isEmpty()) return;
 
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
@@ -624,24 +512,20 @@ public class HomeFragment extends Fragment {
                     }
                 }
                 @Override
-                public void onFailure(Call<List<UserModel>> call, Throwable t) {
-                    // Fail silently for background balance updates
-                }
+                public void onFailure(Call<List<UserModel>> call, Throwable t) {}
             });
     }
 
-    // --- SETUP BANNER SLIDER HELPER ---
     private void setupBannerSlider() {
          if(bannerViewPager != null) {
+             // Basic implementation - requires your BannerAdapter class
+             // If you don't have it, banners won't slide but app won't crash
              List<Integer> banners = new ArrayList<>();
              banners.add(R.drawable.banner1);
              banners.add(R.drawable.banner2);
              banners.add(R.drawable.banner3);
-             
-             // Assuming you have a BannerAdapter class
              BannerAdapter adapter = new BannerAdapter(banners); 
              bannerViewPager.setAdapter(adapter);
          }
     }
-} // <--- End of HomeFragment Class
-
+}
