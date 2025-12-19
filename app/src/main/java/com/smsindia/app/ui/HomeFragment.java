@@ -57,7 +57,7 @@ public class HomeFragment extends Fragment {
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
     private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917"; 
 
-    // --- UI ---
+    // --- UI VARIABLES ---
     private TextView tvBalanceAmount, tvTodayEarnings, tvTotalEarnings, tvUserMobile;
     private ViewPager2 bannerViewPager;
     private Button btnWatchAd;
@@ -96,10 +96,10 @@ public class HomeFragment extends Fragment {
                 .build()
                 .create(SupabaseApi.class);
 
-        // 2. Bind UI (Ensure these IDs exist in fragment_home.xml)
+        // 2. Bind UI (These match the XML I gave you)
         tvBalanceAmount = v.findViewById(R.id.tv_balance_amount);
-        tvTodayEarnings = v.findViewById(R.id.tv_today_earnings);
-        tvTotalEarnings = v.findViewById(R.id.tv_total_earnings);
+        tvTodayEarnings = v.findViewById(R.id.tv_today_earnings); // Ensure XML has this
+        tvTotalEarnings = v.findViewById(R.id.tv_total_earnings); // Ensure XML has this
         tvUserMobile = v.findViewById(R.id.tv_user_mobile);
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         
@@ -112,13 +112,13 @@ public class HomeFragment extends Fragment {
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
         View earnMoreCard = v.findViewById(R.id.card_earn_more);
 
-        // 3. Load User
+        // 3. Load User Data
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         mobileNumber = prefs.getString("mobile", "");
         userIdUUID = prefs.getString("userId", "");
         tvUserMobile.setText(mobileNumber);
 
-        // 4. Init Logic
+        // 4. Init Features
         setupBannerSlider();
         MobileAds.initialize(getContext(), s -> {});
         fetchAdConfiguration(); 
@@ -138,7 +138,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        fetchUserBalance(); // Auto-refresh balance
+        fetchUserBalance(); // Refresh data on return
     }
 
     @Override
@@ -158,6 +158,8 @@ public class HomeFragment extends Fragment {
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
+                        
+                        // Update UI with data from UserModel
                         if(tvBalanceAmount != null) tvBalanceAmount.setText(String.format("₹ %.2f", user.getBalance()));
                         if(tvTodayEarnings != null) tvTodayEarnings.setText(String.format("₹ %.2f", user.getTodayIncome()));
                         if(tvTotalEarnings != null) tvTotalEarnings.setText(String.format("₹ %.2f", user.getTotalIncome()));
@@ -168,7 +170,28 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 2. WHATSAPP CONNECT
+    // 2. BANNER SETUP (MATCHES ADAPTER)
+    // ==========================================
+    private void setupBannerSlider() {
+        if (bannerViewPager == null) return;
+        List<Integer> banners = new ArrayList<>();
+        banners.add(R.drawable.banner1);
+        banners.add(R.drawable.banner2);
+        banners.add(R.drawable.banner3);
+
+        // ✅ Calls the constructor: BannerAdapter(Context, List)
+        bannerViewPager.setAdapter(new BannerAdapter(getContext(), banners));
+
+        bannerViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override public void onPageSelected(int pos) {
+                sliderHandler.removeCallbacks(sliderRunnable);
+                sliderHandler.postDelayed(sliderRunnable, 3000);
+            }
+        });
+    }
+
+    // ==========================================
+    // 3. WHATSAPP LOGIC
     // ==========================================
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
@@ -214,8 +237,7 @@ public class HomeFragment extends Fragment {
     }
 
     private void connectToRenderServer(String baseUrl, String phone, Button btn, AlertDialog dialog) {
-        // SAFETY FIX: Retrofit crashes if URL doesn't end with "/"
-        if (!baseUrl.endsWith("/")) baseUrl += "/";
+        if (!baseUrl.endsWith("/")) baseUrl += "/"; // Safety
 
         Retrofit waRetrofit = new Retrofit.Builder().baseUrl(baseUrl).addConverterFactory(GsonConverterFactory.create()).build();
         WhatsAppApi waApi = waRetrofit.create(WhatsAppApi.class);
@@ -263,7 +285,7 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 3. DAILY CHECK-IN
+    // 4. DAILY CHECK-IN
     // ==========================================
     private void showDailyCheckInDialog() {
         if(userIdUUID.isEmpty()) return;
@@ -285,7 +307,7 @@ public class HomeFragment extends Fragment {
     }
 
     // ==========================================
-    // 4. ADMOB & TASKS
+    // 5. EARN MORE & ADS
     // ==========================================
     private void openEarnMoreWebTask() {
         supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
@@ -381,21 +403,6 @@ public class HomeFragment extends Fragment {
                 }
             }
             @Override public void onFailure(Call<List<UserModel>> c, Throwable t) {}
-        });
-    }
-
-    private void setupBannerSlider() {
-        if (bannerViewPager == null) return;
-        List<Integer> banners = new ArrayList<>();
-        banners.add(R.drawable.banner1);
-        banners.add(R.drawable.banner2);
-        banners.add(R.drawable.banner3);
-        bannerViewPager.setAdapter(new BannerAdapter(getContext(), banners));
-        bannerViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
-            @Override public void onPageSelected(int pos) {
-                sliderHandler.removeCallbacks(sliderRunnable);
-                sliderHandler.postDelayed(sliderRunnable, 3000);
-            }
         });
     }
 }
