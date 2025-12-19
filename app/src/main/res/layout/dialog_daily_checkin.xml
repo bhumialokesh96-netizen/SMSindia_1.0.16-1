@@ -93,7 +93,7 @@
                 android:elevation="4dp"/>
 
             <TextView
-                android:id="@+id/btn_close_chekin"
+                android:id="@+id/btn_close_checkin"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
