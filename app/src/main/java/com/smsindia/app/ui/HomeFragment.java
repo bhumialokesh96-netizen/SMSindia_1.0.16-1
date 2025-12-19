@@ -574,17 +574,21 @@ public class HomeFragment extends Fragment {
     // ==========================================
     
     // ✅ ADDED THIS BACK TO FIX "BANNER NOT SHOWING"
-    private void setupBannerSlider() {
-        if(bannerViewPager != null && getContext() != null) {
+        private void setupBannerSlider() {
+        if(bannerViewPager != null) {
              List<Integer> banners = new ArrayList<>();
+             // Make sure you have created banner1.xml and banner2.xml in drawable folder!
              banners.add(R.drawable.banner1);
              banners.add(R.drawable.banner2);
-             banners.add(R.drawable.banner3);
-             // Ensure you have BannerAdapter created. If not, this line needs your Adapter class.
-             BannerAdapter adapter = new BannerAdapter(getContext(), banners);
+             
+             // ✅ FIXED: Removed 'getContext()'
+             // The error happened because you had: new BannerAdapter(getContext(), banners);
+             BannerAdapter adapter = new BannerAdapter(banners);
+             
              bannerViewPager.setAdapter(adapter);
         }
     }
+
 
     private void fetchUserBalance() {
         if(mobileNumber.isEmpty()) return;
