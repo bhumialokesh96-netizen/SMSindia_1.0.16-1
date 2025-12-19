@@ -1,4 +1,4 @@
-package com.smsindia.app.ui;
+package com.smsindia.app.ui; // <--- CHANGED TO MATCH YOUR SCREENSHOT
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -12,10 +12,9 @@ import java.util.List;
 
 public class BannerAdapter extends RecyclerView.Adapter<BannerAdapter.BannerViewHolder> {
 
-    private Context context;
-    private List<Integer> bannerImages;
+    private final Context context;
+    private final List<Integer> bannerImages;
 
-    // Fixed: Now accepts Context to match HomeFragment
     public BannerAdapter(Context context, List<Integer> bannerImages) {
         this.context = context;
         this.bannerImages = bannerImages;

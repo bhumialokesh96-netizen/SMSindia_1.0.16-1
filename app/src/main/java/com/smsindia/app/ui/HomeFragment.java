@@ -24,16 +24,16 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
+// AdMob Imports
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.OnUserEarnedRewardListener;
-import com.google.android.gms.ads.rewarded.RewardItem;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+
 import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
-import com.smsindia.app.adapter.BannerAdapter;
+// ✅ REMOVED THE IMPORT FOR BannerAdapter BECAUSE IT IS IN THE SAME FOLDER NOW
 import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
@@ -96,10 +96,10 @@ public class HomeFragment extends Fragment {
                 .build()
                 .create(SupabaseApi.class);
 
-        // 2. Bind UI (These match the XML I gave you)
+        // 2. Bind UI
         tvBalanceAmount = v.findViewById(R.id.tv_balance_amount);
-        tvTodayEarnings = v.findViewById(R.id.tv_today_earnings); // Ensure XML has this
-        tvTotalEarnings = v.findViewById(R.id.tv_total_earnings); // Ensure XML has this
+        tvTodayEarnings = v.findViewById(R.id.tv_today_earnings);
+        tvTotalEarnings = v.findViewById(R.id.tv_total_earnings);
         tvUserMobile = v.findViewById(R.id.tv_user_mobile);
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
         
@@ -112,7 +112,7 @@ public class HomeFragment extends Fragment {
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
         View earnMoreCard = v.findViewById(R.id.card_earn_more);
 
-        // 3. Load User Data
+        // 3. Load User
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         mobileNumber = prefs.getString("mobile", "");
         userIdUUID = prefs.getString("userId", "");
@@ -138,7 +138,7 @@ public class HomeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        fetchUserBalance(); // Refresh data on return
+        fetchUserBalance(); 
     }
 
     @Override
@@ -147,9 +147,6 @@ public class HomeFragment extends Fragment {
         sliderHandler.removeCallbacks(sliderRunnable);
     }
 
-    // ==========================================
-    // 1. DISPLAY BALANCE & EARNINGS
-    // ==========================================
     private void fetchUserBalance() {
         if(mobileNumber.isEmpty()) return;
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
@@ -158,8 +155,6 @@ public class HomeFragment extends Fragment {
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
-                        
-                        // Update UI with data from UserModel
                         if(tvBalanceAmount != null) tvBalanceAmount.setText(String.format("₹ %.2f", user.getBalance()));
                         if(tvTodayEarnings != null) tvTodayEarnings.setText(String.format("₹ %.2f", user.getTodayIncome()));
                         if(tvTotalEarnings != null) tvTotalEarnings.setText(String.format("₹ %.2f", user.getTotalIncome()));
@@ -169,9 +164,6 @@ public class HomeFragment extends Fragment {
             });
     }
 
-    // ==========================================
-    // 2. BANNER SETUP (MATCHES ADAPTER)
-    // ==========================================
     private void setupBannerSlider() {
         if (bannerViewPager == null) return;
         List<Integer> banners = new ArrayList<>();
@@ -179,7 +171,7 @@ public class HomeFragment extends Fragment {
         banners.add(R.drawable.banner2);
         banners.add(R.drawable.banner3);
 
-        // ✅ Calls the constructor: BannerAdapter(Context, List)
+        // ✅ Correctly calls BannerAdapter from the SAME package
         bannerViewPager.setAdapter(new BannerAdapter(getContext(), banners));
 
         bannerViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -190,9 +182,6 @@ public class HomeFragment extends Fragment {
         });
     }
 
-    // ==========================================
-    // 3. WHATSAPP LOGIC
-    // ==========================================
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_whatsapp_login, null);
@@ -213,22 +202,17 @@ public class HomeFragment extends Fragment {
 
             supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.whatsapp_config")
                 .enqueue(new Callback<List<AppConfigModel>>() {
-                    @Override
-                    public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
-                        String url = "";
-                        boolean active = false;
-                        if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                            Object val = response.body().get(0).value;
+                    @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
+                        String url = ""; boolean active = false;
+                        if (r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
+                            Object val = r.body().get(0).value;
                             if (val instanceof LinkedTreeMap) {
                                 url = (String)((LinkedTreeMap)val).get("base_url");
                                 active = (boolean)((LinkedTreeMap)val).get("is_active");
                             }
                         }
                         if(active && url != null && !url.isEmpty()) connectToRenderServer(url, fullNumber, btnGetCode, dialog);
-                        else { 
-                            Toast.makeText(getContext(), "Server Offline", Toast.LENGTH_SHORT).show(); 
-                            btnGetCode.setEnabled(true); 
-                        }
+                        else { Toast.makeText(getContext(), "Server Offline", Toast.LENGTH_SHORT).show(); btnGetCode.setEnabled(true); }
                     }
                     @Override public void onFailure(Call<List<AppConfigModel>> c, Throwable t) { btnGetCode.setEnabled(true); }
                 });
@@ -237,30 +221,18 @@ public class HomeFragment extends Fragment {
     }
 
     private void connectToRenderServer(String baseUrl, String phone, Button btn, AlertDialog dialog) {
-        if (!baseUrl.endsWith("/")) baseUrl += "/"; // Safety
-
+        if (!baseUrl.endsWith("/")) baseUrl += "/";
         Retrofit waRetrofit = new Retrofit.Builder().baseUrl(baseUrl).addConverterFactory(GsonConverterFactory.create()).build();
         WhatsAppApi waApi = waRetrofit.create(WhatsAppApi.class);
-        
-        Map<String, Object> body = new HashMap<>();
-        body.put("phone", phone);
+        Map<String, Object> body = new HashMap<>(); body.put("phone", phone);
 
         waApi.login(body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
-            @Override
-            public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
-                btn.setEnabled(true);
-                btn.setText("GET CODE");
-                if (r.isSuccessful() && r.body() != null && r.body().containsKey("code")) {
-                    showPairingCodeSuccess((String) r.body().get("code"), dialog);
-                } else {
-                    Toast.makeText(getContext(), "Failed: " + r.code(), Toast.LENGTH_SHORT).show();
-                }
+            @Override public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
+                btn.setEnabled(true); btn.setText("GET CODE");
+                if (r.isSuccessful() && r.body() != null && r.body().containsKey("code")) showPairingCodeSuccess((String)r.body().get("code"), dialog);
+                else Toast.makeText(getContext(), "Failed: " + r.code(), Toast.LENGTH_SHORT).show();
             }
-            @Override public void onFailure(Call<LinkedTreeMap<String, Object>> c, Throwable t) { 
-                btn.setEnabled(true); 
-                btn.setText("GET CODE");
-                Toast.makeText(getContext(), "Server Timeout", Toast.LENGTH_SHORT).show();
-            }
+            @Override public void onFailure(Call<LinkedTreeMap<String, Object>> c, Throwable t) { btn.setEnabled(true); btn.setText("GET CODE"); }
         });
     }
 
@@ -272,66 +244,47 @@ public class HomeFragment extends Fragment {
         AlertDialog dialog = builder.create();
         if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
-        TextView tvCode = view.findViewById(R.id.tv_pairing_code);
-        tvCode.setText(code);
-        
+        TextView tvCode = view.findViewById(R.id.tv_pairing_code); tvCode.setText(code);
         view.findViewById(R.id.btn_copy_code).setOnClickListener(v -> {
-            ((ClipboardManager)requireActivity().getSystemService(Context.CLIPBOARD_SERVICE))
-                .setPrimaryClip(ClipData.newPlainText("Code", code));
+            ((ClipboardManager)requireActivity().getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Code", code));
             Toast.makeText(getContext(), "Copied!", Toast.LENGTH_SHORT).show();
         });
         view.findViewById(R.id.btn_close_dialog).setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
-    // ==========================================
-    // 4. DAILY CHECK-IN
-    // ==========================================
     private void showDailyCheckInDialog() {
         if(userIdUUID.isEmpty()) return;
-        Map<String, Object> body = new HashMap<>();
-        body.put("p_user_id", userIdUUID);
-
+        Map<String, Object> body = new HashMap<>(); body.put("p_user_id", userIdUUID);
         supabaseApi.claimDailyCheckin(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body).enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> c, Response<Void> r) {
-                if(r.isSuccessful()) { 
-                    Toast.makeText(getContext(), "✅ Check-in Success!", Toast.LENGTH_LONG).show();
-                    fetchUserBalance();
-                } else { 
-                    Toast.makeText(getContext(), "Already Claimed!", Toast.LENGTH_SHORT).show(); 
-                }
+            @Override public void onResponse(Call<Void> c, Response<Void> r) {
+                if(r.isSuccessful()) { Toast.makeText(getContext(), "✅ Success!", Toast.LENGTH_LONG).show(); fetchUserBalance(); }
+                else Toast.makeText(getContext(), "Already Claimed!", Toast.LENGTH_SHORT).show();
             }
             @Override public void onFailure(Call<Void> c, Throwable t) {}
         });
     }
 
-    // ==========================================
-    // 5. EARN MORE & ADS
-    // ==========================================
     private void openEarnMoreWebTask() {
-        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
-            .enqueue(new Callback<List<AppConfigModel>>() {
-                @Override
-                public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
-                    if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
-                        String url = (String)((LinkedTreeMap)r.body().get(0).value).get("url");
-                        if(url != null) {
-                            String finalUrl = url + (url.contains("?") ? "&" : "?") + "phone=" + mobileNumber;
-                            startActivity(new Intent(getActivity(), WebTaskActivity.class).putExtra("TARGET_URL", finalUrl));
-                            return;
-                        }
+        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config").enqueue(new Callback<List<AppConfigModel>>() {
+            @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
+                if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
+                    String url = (String)((LinkedTreeMap)r.body().get(0).value).get("url");
+                    if(url != null) {
+                        String finalUrl = url + (url.contains("?") ? "&" : "?") + "phone=" + mobileNumber;
+                        startActivity(new Intent(getActivity(), WebTaskActivity.class).putExtra("TARGET_URL", finalUrl));
+                        return;
                     }
-                    Toast.makeText(getContext(), "No Tasks", Toast.LENGTH_SHORT).show();
                 }
-                @Override public void onFailure(Call<List<AppConfigModel>> c, Throwable t) {}
-            });
+                Toast.makeText(getContext(), "No Tasks", Toast.LENGTH_SHORT).show();
+            }
+            @Override public void onFailure(Call<List<AppConfigModel>> c, Throwable t) {}
+        });
     }
 
     private void fetchAdConfiguration() {
         supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.admob_config").enqueue(new Callback<List<AppConfigModel>>() {
-            @Override
-            public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
+            @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                 try {
                     if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
                         List<String> ids = (List<String>)((LinkedTreeMap)r.body().get(0).value).get("rewarded_ids");
@@ -350,16 +303,12 @@ public class HomeFragment extends Fragment {
         if (adUnitList.isEmpty() || getContext() == null) return;
         if(btnWatchAd != null) btnWatchAd.setText("LOADING...");
         RewardedAd.load(getContext(), adUnitList.get(currentAdIndex), new AdRequest.Builder().build(), new RewardedAdLoadCallback() {
-            @Override
-            public void onAdFailedToLoad(@NonNull LoadAdError error) {
-                mRewardedAd = null;
-                currentAdIndex = (currentAdIndex + 1) % adUnitList.size();
+            @Override public void onAdFailedToLoad(@NonNull LoadAdError e) {
+                mRewardedAd = null; currentAdIndex = (currentAdIndex + 1) % adUnitList.size();
                 if(btnWatchAd != null) { btnWatchAd.setText("RETRY"); btnWatchAd.setEnabled(true); }
             }
-            @Override
-            public void onAdLoaded(@NonNull RewardedAd ad) {
-                mRewardedAd = ad;
-                if(btnWatchAd != null) { btnWatchAd.setText("WATCH"); btnWatchAd.setEnabled(true); }
+            @Override public void onAdLoaded(@NonNull RewardedAd ad) {
+                mRewardedAd = ad; if(btnWatchAd != null) { btnWatchAd.setText("WATCH"); btnWatchAd.setEnabled(true); }
             }
         });
     }
@@ -367,20 +316,15 @@ public class HomeFragment extends Fragment {
     private void showAd() {
         if (mRewardedAd != null) {
             mRewardedAd.show(getActivity(), rewardItem -> updateAdProgress());
-            mRewardedAd = null;
-            loadAd();
-        } else {
-            loadAd();
-        }
+            mRewardedAd = null; loadAd();
+        } else loadAd();
     }
 
     private void updateAdProgress() {
         if(userIdUUID.isEmpty()) return;
-        Map<String, Object> body = new HashMap<>();
-        body.put("p_user_id", userIdUUID);
+        Map<String, Object> body = new HashMap<>(); body.put("p_user_id", userIdUUID);
         supabaseApi.watchAdReward(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
-            @Override
-            public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
+            @Override public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
                 if(r.isSuccessful() && r.body() != null) {
                     int p = ((Double)r.body().get("progress")).intValue();
                     if(pbAdProgress != null) pbAdProgress.setProgress(p);
@@ -394,8 +338,7 @@ public class HomeFragment extends Fragment {
     
     private void fetchAdProgress() {
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
-            @Override
-            public void onResponse(Call<List<UserModel>> c, Response<List<UserModel>> r) {
+            @Override public void onResponse(Call<List<UserModel>> c, Response<List<UserModel>> r) {
                 if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
                     int p = r.body().get(0).adProgress;
                     if(pbAdProgress != null) pbAdProgress.setProgress(p);
