@@ -9,6 +9,8 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -22,7 +24,6 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
-// --- ADMOB IMPORTS ---
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
@@ -30,9 +31,9 @@ import com.google.android.gms.ads.OnUserEarnedRewardListener;
 import com.google.android.gms.ads.rewarded.RewardItem;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
-
 import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
+import com.smsindia.app.adapter.BannerAdapter;
 import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
@@ -51,230 +52,105 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class HomeFragment extends Fragment {
 
+    // --- CONFIG ---
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
+    private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917"; 
 
-    // --- ADMOB VARIABLES ---
-    private List<String> adUnitList = new ArrayList<>();
-    private int currentAdIndex = 0;
-    private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917";
-
-    private TextView tvBalanceAmount, tvUserMobile;
+    // --- UI ---
+    private TextView tvBalanceAmount, tvTodayEarnings, tvTotalEarnings, tvUserMobile;
     private ViewPager2 bannerViewPager;
-    
-    // AdMob Views
     private Button btnWatchAd;
     private TextView tvAdStatus;
     private ProgressBar pbAdProgress;
-    private RewardedAd mRewardedAd;
-    
+
+    // --- DATA ---
     private SupabaseApi supabaseApi;
     private String mobileNumber;
     private String userIdUUID; 
+    private List<String> adUnitList = new ArrayList<>();
+    private int currentAdIndex = 0;
+    private RewardedAd mRewardedAd;
+
+    // --- SLIDER HANDLER ---
+    private final Handler sliderHandler = new Handler(Looper.getMainLooper());
+    private final Runnable sliderRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (bannerViewPager != null && bannerViewPager.getAdapter() != null) {
+                int nextItem = (bannerViewPager.getCurrentItem() + 1) % bannerViewPager.getAdapter().getItemCount();
+                bannerViewPager.setCurrentItem(nextItem, true);
+                sliderHandler.postDelayed(this, 3000);
+            }
+        }
+    };
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_home, container, false);
 
-        // Init Retrofit
-        Retrofit retrofit = new Retrofit.Builder()
+        // 1. Setup API
+        supabaseApi = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
-                .build();
-        supabaseApi = retrofit.create(SupabaseApi.class);
+                .build()
+                .create(SupabaseApi.class);
 
-        // Initialize Views
+        // 2. Bind UI (Ensure these IDs exist in fragment_home.xml)
         tvBalanceAmount = v.findViewById(R.id.tv_balance_amount);
+        tvTodayEarnings = v.findViewById(R.id.tv_today_earnings);
+        tvTotalEarnings = v.findViewById(R.id.tv_total_earnings);
         tvUserMobile = v.findViewById(R.id.tv_user_mobile);
         bannerViewPager = v.findViewById(R.id.banner_viewpager);
-        Button btnHistory = v.findViewById(R.id.btn_history);
         
-        // AdMob Views
         btnWatchAd = v.findViewById(R.id.btn_watch_ad);
         tvAdStatus = v.findViewById(R.id.tv_ad_status);
         pbAdProgress = v.findViewById(R.id.pb_ad_progress);
-        
-        // Cards
+        Button btnHistory = v.findViewById(R.id.btn_history);
+
         View dailyCheckinCard = v.findViewById(R.id.card_daily_checkin);
         View whatsappCard = v.findViewById(R.id.card_whatsapp_auth);
         View earnMoreCard = v.findViewById(R.id.card_earn_more);
-        
-        // Get User Info
+
+        // 3. Load User
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         mobileNumber = prefs.getString("mobile", "");
         userIdUUID = prefs.getString("userId", "");
-
         tvUserMobile.setText(mobileNumber);
 
+        // 4. Init Logic
         setupBannerSlider();
-
-        // --- INIT ADMOB ---
-        MobileAds.initialize(getContext(), initializationStatus -> {});
+        MobileAds.initialize(getContext(), s -> {});
         fetchAdConfiguration(); 
         fetchAdProgress(); 
 
-        // Click Listeners
+        // 5. Listeners
         dailyCheckinCard.setOnClickListener(view -> showDailyCheckInDialog());
         whatsappCard.setOnClickListener(view -> showWhatsAppLoginDialog());
         earnMoreCard.setOnClickListener(view -> openEarnMoreWebTask());
         
-        if(btnWatchAd != null) {
-            btnWatchAd.setOnClickListener(view -> showAd());
-        }
+        if(btnWatchAd != null) btnWatchAd.setOnClickListener(view -> showAd());
+        btnHistory.setOnClickListener(view -> startActivity(new Intent(getActivity(), WithdrawalHistoryActivity.class)));
 
-        btnHistory.setOnClickListener(view -> {
-             startActivity(new Intent(getActivity(), WithdrawalHistoryActivity.class));
-        });
-        
         return v;
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        fetchUserBalance(); 
+        fetchUserBalance(); // Auto-refresh balance
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        sliderHandler.removeCallbacks(sliderRunnable);
     }
 
     // ==========================================
-    // 1. EARN MORE LOGIC
+    // 1. DISPLAY BALANCE & EARNINGS
     // ==========================================
-    private void openEarnMoreWebTask() {
-        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
-            .enqueue(new Callback<List<AppConfigModel>>() {
-                @Override
-                public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
-                    String targetUrl = "";
-                    boolean isActive = false;
-
-                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                        Object val = response.body().get(0).value;
-                        if (val instanceof LinkedTreeMap) {
-                            LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
-                            if (map.containsKey("url")) targetUrl = (String) map.get("url");
-                            if (map.containsKey("is_active")) isActive = (boolean) map.get("is_active");
-                        }
-                    }
-
-                    if (isActive && targetUrl.length() > 0) {
-                        String finalUrl = targetUrl.contains("?") ? targetUrl + "&phone=" + mobileNumber : targetUrl + "?phone=" + mobileNumber;
-                        Intent intent = new Intent(getActivity(), WebTaskActivity.class);
-                        intent.putExtra("TARGET_URL", finalUrl);
-                        startActivity(intent);
-                    } else {
-                        Toast.makeText(getContext(), "Tasks currently unavailable.", Toast.LENGTH_SHORT).show();
-                    }
-                }
-
-                @Override
-                public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
-                    Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
-                }
-            });
-    }
-
-    // ==========================================
-    // 2. ADMOB LOGIC
-    // ==========================================
-    private void fetchAdConfiguration() {
-        if(btnWatchAd != null) {
-            btnWatchAd.setEnabled(false);
-            btnWatchAd.setText("INIT ADS...");
-        }
-
-        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.admob_config")
-            .enqueue(new Callback<List<AppConfigModel>>() {
-                @Override
-                public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
-                    boolean foundIds = false;
-                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                        Object val = response.body().get(0).value;
-                        if (val instanceof LinkedTreeMap) {
-                            LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
-                            if (map.containsKey("rewarded_ids")) {
-                                Object listObj = map.get("rewarded_ids");
-                                if (listObj instanceof List) {
-                                    adUnitList.clear();
-                                    adUnitList.addAll((List<String>) listObj);
-                                    foundIds = true;
-                                }
-                            }
-                        }
-                    }
-                    if (foundIds && !adUnitList.isEmpty()) {
-                        loadAd(); 
-                    } else {
-                        useFallbackAds(); 
-                    }
-                }
-                @Override
-                public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
-                    useFallbackAds();
-                }
-            });
-    }
-
-    private void useFallbackAds() {
-        adUnitList.clear();
-        adUnitList.add(FALLBACK_AD_ID);
-        loadAd();
-    }
-
-    private void loadAd() {
-        if (adUnitList.isEmpty() || getContext() == null) return;
-
-        if(btnWatchAd != null) {
-            btnWatchAd.setText("LOADING...");
-            btnWatchAd.setEnabled(false);
-        }
-        
-        String currentId = adUnitList.get(currentAdIndex);
-        AdRequest adRequest = new AdRequest.Builder().build();
-        RewardedAd.load(getContext(), currentId, adRequest,
-            new RewardedAdLoadCallback() {
-                @Override
-                public void onAdFailedToLoad(@NonNull LoadAdError loadAdError) {
-                    mRewardedAd = null;
-                    if (currentAdIndex < adUnitList.size() - 1) {
-                        currentAdIndex++; 
-                        loadAd(); 
-                    } else {
-                        currentAdIndex = 0; 
-                        if(getContext() != null && btnWatchAd != null) {
-                            btnWatchAd.setText("RETRY");
-                            btnWatchAd.setEnabled(true);
-                        }
-                    }
-                }
-
-                @Override
-                public void onAdLoaded(@NonNull RewardedAd rewardedAd) {
-                    mRewardedAd = rewardedAd;
-                    currentAdIndex = 0; 
-                    if(getContext() != null && btnWatchAd != null) {
-                        btnWatchAd.setText("WATCH");
-                        btnWatchAd.setEnabled(true);
-                    }
-                }
-            });
-    }
-
-    private void showAd() {
-        if (mRewardedAd != null) {
-            mRewardedAd.show(getActivity(), new OnUserEarnedRewardListener() {
-                @Override
-                public void onUserEarnedReward(@NonNull RewardItem rewardItem) {
-                    updateProgressOnServer();
-                }
-            });
-            mRewardedAd = null; 
-            loadAd(); 
-        } else {
-            Toast.makeText(getContext(), "Ad loading...", Toast.LENGTH_SHORT).show();
-            loadAd();
-        }
-    }
-
-    private void fetchAdProgress() {
+    private void fetchUserBalance() {
         if(mobileNumber.isEmpty()) return;
         supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
@@ -282,53 +158,17 @@ public class HomeFragment extends Fragment {
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
-                        if(tvAdStatus != null && pbAdProgress != null) {
-                            try {
-                                int prog = user.adProgress; 
-                                pbAdProgress.setProgress(prog);
-                                tvAdStatus.setText("Progress: " + prog + "/10");
-                            } catch (Exception e) {}
-                        }
+                        if(tvBalanceAmount != null) tvBalanceAmount.setText(String.format("₹ %.2f", user.getBalance()));
+                        if(tvTodayEarnings != null) tvTodayEarnings.setText(String.format("₹ %.2f", user.getTodayIncome()));
+                        if(tvTotalEarnings != null) tvTotalEarnings.setText(String.format("₹ %.2f", user.getTotalIncome()));
                     }
                 }
-                @Override public void onFailure(Call<List<UserModel>> call, Throwable t) {}
-            });
-    }
-
-    private void updateProgressOnServer() {
-        if (userIdUUID.isEmpty()) return;
-        Map<String, Object> body = new HashMap<>();
-        body.put("p_user_id", userIdUUID);
-
-        if(btnWatchAd != null) btnWatchAd.setText("SAVING...");
-        
-        supabaseApi.watchAdReward(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
-            .enqueue(new Callback<LinkedTreeMap<String, Object>>() {
-                @Override
-                public void onResponse(Call<LinkedTreeMap<String, Object>> call, Response<LinkedTreeMap<String, Object>> response) {
-                    if (response.isSuccessful() && response.body() != null) {
-                        LinkedTreeMap<String, Object> data = response.body();
-                        double progressD = (double) data.get("progress");
-                        int progress = (int) progressD;
-                        String msg = (String) data.get("message");
-                        
-                        if(pbAdProgress != null) pbAdProgress.setProgress(progress);
-                        if(tvAdStatus != null) tvAdStatus.setText("Progress: " + progress + "/10");
-                        Toast.makeText(getContext(), msg, Toast.LENGTH_LONG).show();
-                    }
-                    if(btnWatchAd != null) btnWatchAd.setText("WATCH");
-                }
-
-                @Override
-                public void onFailure(Call<LinkedTreeMap<String, Object>> call, Throwable t) {
-                    Toast.makeText(getContext(), "Network Error.", Toast.LENGTH_SHORT).show();
-                    if(btnWatchAd != null) btnWatchAd.setText("WATCH");
-                }
+                @Override public void onFailure(Call<List<UserModel>> c, Throwable t) {}
             });
     }
 
     // ==========================================
-    // 3. WHATSAPP LOGIC
+    // 2. WHATSAPP CONNECT
     // ==========================================
     private void showWhatsAppLoginDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
@@ -339,14 +179,11 @@ public class HomeFragment extends Fragment {
 
         EditText etNumber = view.findViewById(R.id.et_wa_number);
         Button btnGetCode = view.findViewById(R.id.btn_get_code);
-        View btnCancel = view.findViewById(R.id.btn_cancel_wa);
+        view.findViewById(R.id.btn_cancel_wa).setOnClickListener(v -> dialog.dismiss());
 
         btnGetCode.setOnClickListener(v -> {
             String number = etNumber.getText().toString().trim();
-            if (number.length() != 10) {
-                etNumber.setError("Enter valid 10-digit number");
-                return;
-            }
+            if (number.length() != 10) { etNumber.setError("Invalid"); return; }
             String fullNumber = "91" + number;
             btnGetCode.setText("Connecting...");
             btnGetCode.setEnabled(false);
@@ -355,76 +192,58 @@ public class HomeFragment extends Fragment {
                 .enqueue(new Callback<List<AppConfigModel>>() {
                     @Override
                     public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
-                        String waServerUrl = "";
-                        boolean isActive = false;
+                        String url = "";
+                        boolean active = false;
                         if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                             Object val = response.body().get(0).value;
                             if (val instanceof LinkedTreeMap) {
-                                LinkedTreeMap<?,?> map = (LinkedTreeMap<?,?>) val;
-                                if (map.containsKey("base_url")) waServerUrl = (String) map.get("base_url");
-                                if (map.containsKey("is_active")) isActive = (boolean) map.get("is_active");
+                                url = (String)((LinkedTreeMap)val).get("base_url");
+                                active = (boolean)((LinkedTreeMap)val).get("is_active");
                             }
                         }
-                        if (!isActive || waServerUrl.isEmpty()) {
-                            Toast.makeText(getContext(), "Server Maintenance.", Toast.LENGTH_SHORT).show();
-                            btnGetCode.setEnabled(true);
-                            btnGetCode.setText("GET PAIRING CODE");
-                            return;
+                        if(active && url != null && !url.isEmpty()) connectToRenderServer(url, fullNumber, btnGetCode, dialog);
+                        else { 
+                            Toast.makeText(getContext(), "Server Offline", Toast.LENGTH_SHORT).show(); 
+                            btnGetCode.setEnabled(true); 
                         }
-                        connectToRenderServer(waServerUrl, fullNumber, btnGetCode, dialog);
                     }
-                    @Override
-                    public void onFailure(Call<List<AppConfigModel>> call, Throwable t) {
-                        Toast.makeText(getContext(), "Check Internet", Toast.LENGTH_SHORT).show();
-                        btnGetCode.setEnabled(true);
-                        btnGetCode.setText("GET PAIRING CODE");
-                    }
+                    @Override public void onFailure(Call<List<AppConfigModel>> c, Throwable t) { btnGetCode.setEnabled(true); }
                 });
         });
-
-        btnCancel.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
     private void connectToRenderServer(String baseUrl, String phone, Button btn, AlertDialog dialog) {
+        // SAFETY FIX: Retrofit crashes if URL doesn't end with "/"
+        if (!baseUrl.endsWith("/")) baseUrl += "/";
+
         Retrofit waRetrofit = new Retrofit.Builder().baseUrl(baseUrl).addConverterFactory(GsonConverterFactory.create()).build();
         WhatsAppApi waApi = waRetrofit.create(WhatsAppApi.class);
+        
         Map<String, Object> body = new HashMap<>();
         body.put("phone", phone);
 
         waApi.login(body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
             @Override
-            public void onResponse(Call<LinkedTreeMap<String, Object>> call, Response<LinkedTreeMap<String, Object>> response) {
+            public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
                 btn.setEnabled(true);
-                btn.setText("GET PAIRING CODE");
-                if (response.isSuccessful() && response.body() != null) {
-                    LinkedTreeMap<String, Object> res = response.body();
-                    if(res.containsKey("code")) {
-                        String pairCode = (String) res.get("code");
-                        showPairingCodeSuccess(pairCode, dialog);
-                    } else {
-                        Toast.makeText(getContext(), "No code returned.", Toast.LENGTH_LONG).show();
-                    }
+                btn.setText("GET CODE");
+                if (r.isSuccessful() && r.body() != null && r.body().containsKey("code")) {
+                    showPairingCodeSuccess((String) r.body().get("code"), dialog);
                 } else {
-                    Toast.makeText(getContext(), "Login Failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getContext(), "Failed: " + r.code(), Toast.LENGTH_SHORT).show();
                 }
             }
-            @Override
-            public void onFailure(Call<LinkedTreeMap<String, Object>> call, Throwable t) {
-                btn.setEnabled(true);
-                btn.setText("GET PAIRING CODE");
-                Toast.makeText(getContext(), "Server Timeout (Render is starting up...)", Toast.LENGTH_LONG).show();
+            @Override public void onFailure(Call<LinkedTreeMap<String, Object>> c, Throwable t) { 
+                btn.setEnabled(true); 
+                btn.setText("GET CODE");
+                Toast.makeText(getContext(), "Server Timeout", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
-    // ==========================================
-    // 4. MISSING METHODS (Now Included!)
-    // ==========================================
-
     private void showPairingCodeSuccess(String code, AlertDialog oldDialog) {
         if(oldDialog != null) oldDialog.dismiss();
-
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_pairing_code, null);
         builder.setView(view);
@@ -432,141 +251,151 @@ public class HomeFragment extends Fragment {
         if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
         TextView tvCode = view.findViewById(R.id.tv_pairing_code);
-        Button btnCopy = view.findViewById(R.id.btn_copy_code);
-        Button btnClose = view.findViewById(R.id.btn_close_dialog);
-
         tvCode.setText(code);
-
-        btnCopy.setOnClickListener(v -> {
-            ClipboardManager clipboard = (ClipboardManager) requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("Pairing Code", code);
-            clipboard.setPrimaryClip(clip);
-            Toast.makeText(getContext(), "Code Copied!", Toast.LENGTH_SHORT).show();
+        
+        view.findViewById(R.id.btn_copy_code).setOnClickListener(v -> {
+            ((ClipboardManager)requireActivity().getSystemService(Context.CLIPBOARD_SERVICE))
+                .setPrimaryClip(ClipData.newPlainText("Code", code));
+            Toast.makeText(getContext(), "Copied!", Toast.LENGTH_SHORT).show();
         });
-
-        // FIX: Close the dialog
-        btnClose.setOnClickListener(v -> dialog.dismiss());
-
+        view.findViewById(R.id.btn_close_dialog).setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
 
-        // ------------------------------------------------------------------------
-    // REPLACE YOUR OLD showDailyCheckInDialog WITH THIS ONE
-    // ------------------------------------------------------------------------
+    // ==========================================
+    // 3. DAILY CHECK-IN
+    // ==========================================
     private void showDailyCheckInDialog() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
-        View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
-        builder.setView(view);
-        android.app.AlertDialog dialog = builder.create();
-        if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        if(userIdUUID.isEmpty()) return;
+        Map<String, Object> body = new HashMap<>();
+        body.put("p_user_id", userIdUUID);
 
-        // 1. REWARDS ARRAY (Matches your SQL Database logic)
-        // Day 1=2, Day 2=5, Day 3=2, Day 4=2, Day 5=5, Day 6=2, Day 7=10, Day 8=5, Day 9=5, Day 10=20
-        int[] rewards = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
-
-        // 2. LOOP TO UPDATE TEXT FOR ALL 10 DAYS
-        for (int i = 1; i <= 10; i++) {
-            // Find the included layout (ids are day1, day2, day3...)
-            String containerIdName = "day" + i; 
-            int resID = getResources().getIdentifier(containerIdName, "id", requireContext().getPackageName());
-            
-            View dayItemView = view.findViewById(resID);
-
-            if (dayItemView != null) {
-                // Find the TextViews inside item_day_reward.xml
-                TextView tvDayLabel = dayItemView.findViewById(R.id.lbl_day);     // <--- YOUR ID
-                TextView tvAmountLabel = dayItemView.findViewById(R.id.lbl_amount); // <--- YOUR ID
-
-                // Update text
-                if (tvDayLabel != null) {
-                    tvDayLabel.setText("Day " + i); 
-                }
-                if (tvAmountLabel != null) {
-                    tvAmountLabel.setText("₹" + rewards[i-1]);
-                }
-            }
-        }
-
-        // 3. HANDLE BUTTON CLICKS
-        Button btnClaim = view.findViewById(R.id.btn_claim_reward);
-        TextView btnClose = view.findViewById(R.id.btn_close_checkin);
-        
-        btnClaim.setOnClickListener(v -> claimDailyBonus(dialog));
-        btnClose.setOnClickListener(v -> dialog.dismiss());
-
-        dialog.show();
-    }
-
-    // ------------------------------------------------------------------------
-    // KEEP THIS FUNCTION TO HANDLE THE SERVER CALL
-    // ------------------------------------------------------------------------
-    private void claimDailyBonus(android.app.AlertDialog dialog) {
-        if (userIdUUID.isEmpty()) return;
-        
-        Button btn = dialog.findViewById(R.id.btn_claim_reward);
-        if(btn != null) {
-            btn.setText("PROCESSING...");
-            btn.setEnabled(false);
-        }
-
-        // Call Supabase Function
-        supabaseApi.claimDailyCheckin(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, new HashMap<String, Object>(){{
-            put("p_user_id", userIdUUID);
-        }}).enqueue(new Callback<Void>() {
+        supabaseApi.claimDailyCheckin(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body).enqueue(new Callback<Void>() {
             @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(getContext(), "Success! Reward Added.", Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
-                    fetchUserBalance(); // Update main screen balance
-                } else {
-                    // Usually means 500 Error -> Already claimed
-                    Toast.makeText(getContext(), "You have already claimed today!", Toast.LENGTH_SHORT).show();
-                    dialog.dismiss();
+            public void onResponse(Call<Void> c, Response<Void> r) {
+                if(r.isSuccessful()) { 
+                    Toast.makeText(getContext(), "✅ Check-in Success!", Toast.LENGTH_LONG).show();
+                    fetchUserBalance();
+                } else { 
+                    Toast.makeText(getContext(), "Already Claimed!", Toast.LENGTH_SHORT).show(); 
                 }
             }
-
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(getContext(), "Network Connection Error", Toast.LENGTH_SHORT).show();
-                if(btn != null) {
-                    btn.setText("CLAIM REWARD");
-                    btn.setEnabled(true);
-                }
-            }
+            @Override public void onFailure(Call<Void> c, Throwable t) {}
         });
     }
 
-
-    private void fetchUserBalance() {
-        if (mobileNumber.isEmpty()) return;
-
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
-            .enqueue(new Callback<List<UserModel>>() {
+    // ==========================================
+    // 4. ADMOB & TASKS
+    // ==========================================
+    private void openEarnMoreWebTask() {
+        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config")
+            .enqueue(new Callback<List<AppConfigModel>>() {
                 @Override
-                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
-                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                        UserModel user = response.body().get(0);
-                        if (tvBalanceAmount != null) {
-                            tvBalanceAmount.setText("₹" + String.format("%.2f", user.balance));
+                public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
+                    if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
+                        String url = (String)((LinkedTreeMap)r.body().get(0).value).get("url");
+                        if(url != null) {
+                            String finalUrl = url + (url.contains("?") ? "&" : "?") + "phone=" + mobileNumber;
+                            startActivity(new Intent(getActivity(), WebTaskActivity.class).putExtra("TARGET_URL", finalUrl));
+                            return;
                         }
                     }
+                    Toast.makeText(getContext(), "No Tasks", Toast.LENGTH_SHORT).show();
                 }
-                @Override
-                public void onFailure(Call<List<UserModel>> call, Throwable t) {}
+                @Override public void onFailure(Call<List<AppConfigModel>> c, Throwable t) {}
             });
     }
 
+    private void fetchAdConfiguration() {
+        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.admob_config").enqueue(new Callback<List<AppConfigModel>>() {
+            @Override
+            public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
+                try {
+                    if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
+                        List<String> ids = (List<String>)((LinkedTreeMap)r.body().get(0).value).get("rewarded_ids");
+                        if(ids != null && !ids.isEmpty()) { adUnitList.clear(); adUnitList.addAll(ids); loadAd(); return; }
+                    }
+                } catch(Exception e) {}
+                useFallbackAds();
+            }
+            @Override public void onFailure(Call<List<AppConfigModel>> c, Throwable t) { useFallbackAds(); }
+        });
+    }
+
+    private void useFallbackAds() { adUnitList.add(FALLBACK_AD_ID); loadAd(); }
+
+    private void loadAd() {
+        if (adUnitList.isEmpty() || getContext() == null) return;
+        if(btnWatchAd != null) btnWatchAd.setText("LOADING...");
+        RewardedAd.load(getContext(), adUnitList.get(currentAdIndex), new AdRequest.Builder().build(), new RewardedAdLoadCallback() {
+            @Override
+            public void onAdFailedToLoad(@NonNull LoadAdError error) {
+                mRewardedAd = null;
+                currentAdIndex = (currentAdIndex + 1) % adUnitList.size();
+                if(btnWatchAd != null) { btnWatchAd.setText("RETRY"); btnWatchAd.setEnabled(true); }
+            }
+            @Override
+            public void onAdLoaded(@NonNull RewardedAd ad) {
+                mRewardedAd = ad;
+                if(btnWatchAd != null) { btnWatchAd.setText("WATCH"); btnWatchAd.setEnabled(true); }
+            }
+        });
+    }
+
+    private void showAd() {
+        if (mRewardedAd != null) {
+            mRewardedAd.show(getActivity(), rewardItem -> updateAdProgress());
+            mRewardedAd = null;
+            loadAd();
+        } else {
+            loadAd();
+        }
+    }
+
+    private void updateAdProgress() {
+        if(userIdUUID.isEmpty()) return;
+        Map<String, Object> body = new HashMap<>();
+        body.put("p_user_id", userIdUUID);
+        supabaseApi.watchAdReward(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
+            @Override
+            public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
+                if(r.isSuccessful() && r.body() != null) {
+                    int p = ((Double)r.body().get("progress")).intValue();
+                    if(pbAdProgress != null) pbAdProgress.setProgress(p);
+                    if(tvAdStatus != null) tvAdStatus.setText("Progress: " + p + "/10");
+                    Toast.makeText(getContext(), (String)r.body().get("message"), Toast.LENGTH_SHORT).show();
+                }
+            }
+            @Override public void onFailure(Call<LinkedTreeMap<String, Object>> c, Throwable t) {}
+        });
+    }
+    
+    private void fetchAdProgress() {
+        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
+            @Override
+            public void onResponse(Call<List<UserModel>> c, Response<List<UserModel>> r) {
+                if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
+                    int p = r.body().get(0).adProgress;
+                    if(pbAdProgress != null) pbAdProgress.setProgress(p);
+                    if(tvAdStatus != null) tvAdStatus.setText("Progress: " + p + "/10");
+                }
+            }
+            @Override public void onFailure(Call<List<UserModel>> c, Throwable t) {}
+        });
+    }
+
     private void setupBannerSlider() {
-         if(bannerViewPager != null) {
-             // Basic implementation - requires your BannerAdapter class
-             // If you don't have it, banners won't slide but app won't crash
-             List<Integer> banners = new ArrayList<>();
-             banners.add(R.drawable.banner1);
-             banners.add(R.drawable.banner2);
-             banners.add(R.drawable.banner3);
-             BannerAdapter adapter = new BannerAdapter(banners); 
-             bannerViewPager.setAdapter(adapter);
-         }
+        if (bannerViewPager == null) return;
+        List<Integer> banners = new ArrayList<>();
+        banners.add(R.drawable.banner1);
+        banners.add(R.drawable.banner2);
+        banners.add(R.drawable.banner3);
+        bannerViewPager.setAdapter(new BannerAdapter(getContext(), banners));
+        bannerViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override public void onPageSelected(int pos) {
+                sliderHandler.removeCallbacks(sliderRunnable);
+                sliderHandler.postDelayed(sliderRunnable, 3000);
+            }
+        });
     }
 }

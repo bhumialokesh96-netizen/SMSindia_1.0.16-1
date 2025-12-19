@@ -3,8 +3,6 @@ package com.smsindia.app.service;
 import com.google.gson.annotations.SerializedName;
 
 public class TaskModel {
-    // If your Supabase Table columns are simply 'id', 'phone', 'message':
-    
     @SerializedName("id") 
     public String id;
 
@@ -13,4 +11,8 @@ public class TaskModel {
 
     @SerializedName("message") 
     public String message;
+
+    // ✅ Recommended: Add this just in case you need to check state later
+    @SerializedName("status") 
+    public String status; 
 }

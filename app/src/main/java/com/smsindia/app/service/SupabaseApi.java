@@ -120,12 +120,14 @@ public interface SupabaseApi {
     );
 
     // CLAIM REWARD (RPC - Adds Money & Completes Task)
+        // CLAIM REWARD (RPC - Adds Money & Completes Task)
     @POST("/rest/v1/rpc/claim_sms_reward")
     Call<Void> claimReward(
         @Header("Authorization") String auth,
         @Header("apikey") String apiKey,
-        @Body Map<String, Object> body
+        @Body ClaimRequest body // <--- CHANGED FROM Map TO ClaimRequest
     );
+
 
     // ==========================================
     // 5. BONUS FEATURES (Check-in, Spin, Ads)
