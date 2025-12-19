@@ -58,7 +58,7 @@ public class HomeFragment extends Fragment {
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     // ✅ REAL ADMOB ID
-    private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/7863146672";
+    private static final String AD_UNIT_ID = "ca-app-pub-9828067292234660/3722266272";
 
     private TextView tvBalanceAmount, tvUserMobile;
     private ViewPager2 bannerViewPager;
