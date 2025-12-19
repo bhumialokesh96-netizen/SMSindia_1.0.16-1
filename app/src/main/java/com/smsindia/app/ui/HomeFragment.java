@@ -579,6 +579,7 @@ public class HomeFragment extends Fragment {
              List<Integer> banners = new ArrayList<>();
              banners.add(R.drawable.banner1);
              banners.add(R.drawable.banner2);
+             banners.add(R.drawable.banner3);
              // Ensure you have BannerAdapter created. If not, this line needs your Adapter class.
              BannerAdapter adapter = new BannerAdapter(getContext(), banners);
              bannerViewPager.setAdapter(adapter);
