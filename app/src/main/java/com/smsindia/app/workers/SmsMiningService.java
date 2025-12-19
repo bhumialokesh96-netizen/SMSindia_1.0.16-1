@@ -38,7 +38,6 @@ import retrofit2.converter.gson.GsonConverterFactory;
 public class SmsMiningService extends Service {
 
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    // ⚠️ SECURITY NOTE: Ideally, keep this key in BuildConfig or C++ NDK
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
@@ -53,9 +52,8 @@ public class SmsMiningService extends Service {
     private final Set<String> processedTaskIds = new HashSet<>();
     private boolean isRunning = false;
     private int selectedSubId = -1;
-    private String userId; // NOTE: This must be the UUID string now!
+    private String userId; 
     
-    // --- LOGIC VARS ---
     private int tasksProcessedInBatch = 0;
     private int successCount = 0;
     private int consecutiveFailures = 0; 
@@ -63,18 +61,14 @@ public class SmsMiningService extends Service {
     private final int MAX_CONSECUTIVE_FAILURES = 3; 
     
     private SupabaseApi supabaseApi;
-    
     private BroadcastReceiver sentReceiver;
     private BroadcastReceiver deliveredReceiver;
     private PowerManager.WakeLock wakeLock;
-    
     private long currentRetryDelay = 1000;
-    private final long MAX_RETRY_DELAY = 60000; 
 
     @Override
     public void onCreate() {
         super.onCreate();
-        // Removed FirebaseFirestore initialization
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
@@ -97,7 +91,7 @@ public class SmsMiningService extends Service {
                 return START_NOT_STICKY;
             }
             selectedSubId = intent.getIntExtra("subId", -1);
-            userId = intent.getStringExtra("userId"); // Ensure this is the UUID from SharedPreferences
+            userId = intent.getStringExtra("userId"); 
 
             if (!isRunning) {
                 isRunning = true;
@@ -114,14 +108,12 @@ public class SmsMiningService extends Service {
     private void fetchAndClaimTask() {
         if (!isRunning) return;
 
-        // Auto-Stop Check
         if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
             stopServiceSafely("Paused: Quota Exceeded");
             return;
         }
 
         if (tasksProcessedInBatch >= BATCH_LIMIT) {
-            sendBroadcastUpdate("Syncing...", 100);
             sendBatchCompleteSignal();
             stopServiceSafely("Batch Complete");
             return;
@@ -131,8 +123,8 @@ public class SmsMiningService extends Service {
         int progressPercent = (tasksProcessedInBatch * 100) / BATCH_LIMIT;
         sendBroadcastUpdate("Task " + (tasksProcessedInBatch + 1) + "/10", progressPercent);
 
-        // RPC Call: Marks as 'processing' but DOES NOT delete
-        supabaseApi.getTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY)
+        // Fetch task using RPC (Prevents getting same task twice)
+        supabaseApi.getOneTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY)
             .enqueue(new Callback<List<TaskModel>>() {
                 @Override
                 public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
@@ -145,14 +137,14 @@ public class SmsMiningService extends Service {
                         sendSmsWithDelayCheck(task.phone, task.message, task.id);
                     } else {
                         releaseCpu();
-                        handleSmartSleep("No Tasks");
+                        handleSmartSleep("No Tasks Available");
                     }
                 }
 
                 @Override
                 public void onFailure(Call<List<TaskModel>> call, Throwable t) {
                     releaseCpu();
-                    handleSmartSleep("Net Error");
+                    handleSmartSleep("Network Error");
                 }
             });
     }
@@ -176,16 +168,11 @@ public class SmsMiningService extends Service {
             sentIntent.setPackage(getPackageName());
             PendingIntent sentPI = PendingIntent.getBroadcast(this, uniqueRequestCode, sentIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-            Intent deliveryIntent = new Intent(DELIVERED_ACTION);
-            deliveryIntent.putExtra("taskId", taskId);
-            deliveryIntent.setPackage(getPackageName());
-            PendingIntent deliveryPI = PendingIntent.getBroadcast(this, uniqueRequestCode, deliveryIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-            smsManager.sendTextMessage(phone, null, message, sentPI, deliveryPI);
+            smsManager.sendTextMessage(phone, null, message, sentPI, null);
 
         } catch (Exception e) {
             consecutiveFailures++;
-            returnTaskToQueue(taskId); // Release on crash
+            returnTaskToQueue(taskId); 
             releaseCpu();
             handleSmartSleep("SIM Error");
         }
@@ -203,93 +190,53 @@ public class SmsMiningService extends Service {
                         // ✅ SUCCESS
                         consecutiveFailures = 0; 
                         successCount++;
-                        sendBroadcastUpdate("Sent! Processing...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
+                        sendBroadcastUpdate("Sent! Adding Reward...", (tasksProcessedInBatch * 100) / BATCH_LIMIT);
                         
-                        // 1. Give User Money (VIA SUPABASE RPC)
+                        // 🚨 CRITICAL CHANGE: ONLY CALL THIS. DO NOT UPDATE STATUS MANUALLY.
                         processReward(phone, taskId); 
-                        
-                        // 2. Mark Task Source as 'sent'
-                        markTaskAsSent(taskId);
                         break;
                         
-                    case SmsManager.RESULT_ERROR_NO_SERVICE:
-                    case SmsManager.RESULT_ERROR_GENERIC_FAILURE:
                     default:
                         // ❌ FAILURE
                         consecutiveFailures++;
-                        Log.e("SMS_MINER", "SMS Failed. Count: " + consecutiveFailures);
-                        
-                        // 1. Return to 'pending' so others can try
                         returnTaskToQueue(taskId);
-                        
-                        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-                            stopServiceSafely("Stopped: SMS Limit Reached?");
-                        } else {
-                            handleSmartSleep("Send Failed");
-                        }
                         releaseCpu();
+                        handleSmartSleep("SMS Failed");
                         break;
                 }
             }
         };
 
-        deliveredReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (getResultCode() == Activity.RESULT_OK) {
-                    // Delivery Confirmation logic (Optional)
-                    // If you want to update the log status in Supabase, you can do it here.
-                    // For now, we skip it to save bandwidth, as payout happens on Sent.
-                    Log.d("SMS_MINER", "Delivery Confirmed for: " + intent.getStringExtra("taskId"));
-                }
-            }
-        };
-        
         int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ? Context.RECEIVER_EXPORTED : 0;
         registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
-        registerReceiver(deliveredReceiver, new IntentFilter(DELIVERED_ACTION), flags);
     }
 
-    // --- SUPABASE API CALLS ---
-
-    // ✅ THE MONEY MAKER: Updates Balance, SMS Count, and Inserts Log in ONE go.
+    // ✅ THE ONLY FUNCTION THAT UPDATES THE DATABASE
     private void processReward(String phone, String taskId) {
         if (userId == null) { nextTaskInBatch(); return; }
 
         Map<String, Object> params = new HashMap<>();
-        params.put("p_user_id", userId);   // The User's UUID
-        params.put("p_task_id", taskId);   // The Task ID
-        params.put("p_phone", phone);      // The Target Phone
-        params.put("p_amount", REWARD);    // The Reward Amount
+        params.put("p_user_id", userId);   
+        params.put("p_task_id", taskId);   
+        params.put("p_phone", phone);      
+        params.put("p_amount", REWARD);    
 
+        // This RPC call does EVERYTHING: Adds Money + Updates Task to 'completed'
         supabaseApi.claimReward("Bearer " + SUPABASE_KEY, SUPABASE_KEY, params)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
-                    // Regardless of server response (it might be duplicate), we move on.
-                    // Ideally, check response.isSuccessful()
+                    if(!response.isSuccessful()) {
+                        Log.e("SMS_MINER", "Reward Failed: " + response.code());
+                    }
                     nextTaskInBatch();
                 }
 
                 @Override
                 public void onFailure(Call<Void> call, Throwable t) {
-                    // Network failed recording the money. 
-                    // In a real app, save to local SQLite and sync later.
-                    // For now, just proceed.
+                    Log.e("SMS_MINER", "Network Fail on Reward");
                     nextTaskInBatch();
                 }
-            });
-    }
-
-    // SUCCESS: Mark as 'sent'
-    private void markTaskAsSent(String taskId) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("status", "sent");
-        
-        supabaseApi.updateTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + taskId, body)
-            .enqueue(new Callback<Void>() {
-                @Override public void onResponse(Call<Void> c, Response<Void> r) {}
-                @Override public void onFailure(Call<Void> c, Throwable t) {}
             });
     }
 
@@ -297,7 +244,6 @@ public class SmsMiningService extends Service {
     private void returnTaskToQueue(String taskId) {
         Map<String, Object> body = new HashMap<>();
         body.put("status", "pending");
-        body.put("locked_at", null); // Clear lock time
         
         supabaseApi.updateTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + taskId, body)
             .enqueue(new Callback<Void>() {
@@ -305,8 +251,6 @@ public class SmsMiningService extends Service {
                 @Override public void onFailure(Call<Void> c, Throwable t) {}
             });
     }
-
-    // --- GENERIC HELPERS ---
 
     private void nextTaskInBatch() {
         tasksProcessedInBatch++; 
@@ -318,7 +262,7 @@ public class SmsMiningService extends Service {
 
     private void handleSmartSleep(String reason) {
         sendBroadcastUpdate("Retry: " + reason, (tasksProcessedInBatch * 100) / BATCH_LIMIT);
-        currentRetryDelay = Math.min(currentRetryDelay * 2, MAX_RETRY_DELAY);
+        currentRetryDelay = Math.min(currentRetryDelay * 2, 60000);
         new Handler(getMainLooper()).postDelayed(this::fetchAndClaimTask, currentRetryDelay);
     }
 
@@ -359,16 +303,6 @@ public class SmsMiningService extends Service {
     private void stopServiceSafely(String reason) {
         isRunning = false;
         releaseCpu();
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if(nm != null) {
-            Notification n = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Mining Stopped")
-                .setContentText(reason)
-                .setSmallIcon(R.drawable.ic_launcher)
-                .setAutoCancel(true)
-                .build();
-            nm.notify(2, n);
-        }
         stopSelf();
     }
     
@@ -376,10 +310,7 @@ public class SmsMiningService extends Service {
     public void onDestroy() { 
         isRunning = false; 
         releaseCpu(); 
-        try { 
-            if(sentReceiver!=null) unregisterReceiver(sentReceiver); 
-            if(deliveredReceiver!=null) unregisterReceiver(deliveredReceiver);
-        } catch(Exception e){}
+        try { if(sentReceiver!=null) unregisterReceiver(sentReceiver); } catch(Exception e){}
         super.onDestroy(); 
     }
     

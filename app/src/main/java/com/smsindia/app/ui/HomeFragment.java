@@ -450,52 +450,93 @@ public class HomeFragment extends Fragment {
         dialog.show();
     }
 
+        // ------------------------------------------------------------------------
+    // REPLACE YOUR OLD showDailyCheckInDialog WITH THIS ONE
+    // ------------------------------------------------------------------------
     private void showDailyCheckInDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(getContext());
         View view = LayoutInflater.from(getContext()).inflate(R.layout.dialog_daily_checkin, null);
         builder.setView(view);
-        AlertDialog dialog = builder.create();
+        android.app.AlertDialog dialog = builder.create();
         if(dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
+        // 1. REWARDS ARRAY (Matches your SQL Database logic)
+        // Day 1=2, Day 2=5, Day 3=2, Day 4=2, Day 5=5, Day 6=2, Day 7=10, Day 8=5, Day 9=5, Day 10=20
+        int[] rewards = {2, 5, 2, 2, 5, 2, 10, 5, 5, 20};
+
+        // 2. LOOP TO UPDATE TEXT FOR ALL 10 DAYS
+        for (int i = 1; i <= 10; i++) {
+            // Find the included layout (ids are day1, day2, day3...)
+            String containerIdName = "day" + i; 
+            int resID = getResources().getIdentifier(containerIdName, "id", requireContext().getPackageName());
+            
+            View dayItemView = view.findViewById(resID);
+
+            if (dayItemView != null) {
+                // Find the TextViews inside item_day_reward.xml
+                TextView tvDayLabel = dayItemView.findViewById(R.id.lbl_day);     // <--- YOUR ID
+                TextView tvAmountLabel = dayItemView.findViewById(R.id.lbl_amount); // <--- YOUR ID
+
+                // Update text
+                if (tvDayLabel != null) {
+                    tvDayLabel.setText("Day " + i); 
+                }
+                if (tvAmountLabel != null) {
+                    tvAmountLabel.setText("₹" + rewards[i-1]);
+                }
+            }
+        }
+
+        // 3. HANDLE BUTTON CLICKS
         Button btnClaim = view.findViewById(R.id.btn_claim_reward);
-        View btnClose = view.findViewById(R.id.btn_close_checkin);
-
-        // FIX: Close the dialog
+        TextView btnClose = view.findViewById(R.id.btn_close_checkin);
+        
+        btnClaim.setOnClickListener(v -> claimDailyBonus(dialog));
         btnClose.setOnClickListener(v -> dialog.dismiss());
-
-        btnClaim.setOnClickListener(v -> {
-            btnClaim.setText("Claiming...");
-            btnClaim.setEnabled(false);
-
-            // FIX: Sending User ID
-            Map<String, Object> body = new HashMap<>();
-            body.put("p_user_id", userIdUUID); 
-
-            supabaseApi.claimCheckIn(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body)
-                .enqueue(new Callback<Void>() {
-                    @Override
-                    public void onResponse(Call<Void> call, Response<Void> response) {
-                        if (response.isSuccessful()) {
-                            Toast.makeText(getContext(), "Success! Reward Added.", Toast.LENGTH_SHORT).show();
-                            fetchUserBalance(); 
-                            dialog.dismiss();
-                        } else {
-                            Toast.makeText(getContext(), "Already claimed today!", Toast.LENGTH_SHORT).show();
-                            dialog.dismiss();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<Void> call, Throwable t) {
-                        Toast.makeText(getContext(), "Network Error", Toast.LENGTH_SHORT).show();
-                        btnClaim.setText("TRY AGAIN");
-                        btnClaim.setEnabled(true);
-                    }
-                });
-        });
 
         dialog.show();
     }
+
+    // ------------------------------------------------------------------------
+    // KEEP THIS FUNCTION TO HANDLE THE SERVER CALL
+    // ------------------------------------------------------------------------
+    private void claimDailyBonus(android.app.AlertDialog dialog) {
+        if (userIdUUID.isEmpty()) return;
+        
+        Button btn = dialog.findViewById(R.id.btn_claim_reward);
+        if(btn != null) {
+            btn.setText("PROCESSING...");
+            btn.setEnabled(false);
+        }
+
+        // Call Supabase Function
+        supabaseApi.claimDailyCheckin(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, new HashMap<String, Object>(){{
+            put("p_user_id", userIdUUID);
+        }}).enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(getContext(), "Success! Reward Added.", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    fetchUserBalance(); // Update main screen balance
+                } else {
+                    // Usually means 500 Error -> Already claimed
+                    Toast.makeText(getContext(), "You have already claimed today!", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                Toast.makeText(getContext(), "Network Connection Error", Toast.LENGTH_SHORT).show();
+                if(btn != null) {
+                    btn.setText("CLAIM REWARD");
+                    btn.setEnabled(true);
+                }
+            }
+        });
+    }
+
 
     private void fetchUserBalance() {
         if (mobileNumber.isEmpty()) return;
