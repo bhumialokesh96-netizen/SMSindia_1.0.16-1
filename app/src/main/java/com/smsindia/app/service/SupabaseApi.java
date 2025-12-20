@@ -14,9 +14,8 @@ import retrofit2.http.Query;
 public interface SupabaseApi {
 
     // ==========================================
-    // 1. USER AUTHENTICATION & PROFILE
+    // 1. USER AUTHENTICATION
     // ==========================================
-    
     @GET("/rest/v1/users")
     Call<List<UserModel>> getUser(
         @Header("apikey") String apiKey,
@@ -53,7 +52,6 @@ public interface SupabaseApi {
     // ==========================================
     // 3. WALLET & WITHDRAWALS
     // ==========================================
-    
     @POST("/rest/v1/withdrawals")
     Call<Void> requestWithdrawal(
         @Header("apikey") String apiKey,
@@ -78,18 +76,18 @@ public interface SupabaseApi {
     );
 
     // ==========================================
-    // 4. SMS MINING & TASKS (UPDATED FOR BATCHING)
+    // 4. SMS MINING (NEW BATCH SYSTEM)
     // ==========================================
 
-    // ✅ NEW: Fetch 10 Tasks at once (High Speed)
+    // ✅ FETCH BATCH (Downloads 10 tasks & locks them)
     @POST("/rest/v1/rpc/fetch_batch_tasks")
     Call<List<TaskModel>> fetchBatchTasks(
         @Header("Authorization") String token, 
         @Header("apikey") String apiKey,
-        @Body Map<String, Object> body // Sends {"p_user_id": "...", "p_size": 10}
+        @Body Map<String, Object> body 
     );
 
-    // ✅ NEW: Claim Reward for 10 Tasks at once
+    // ✅ CLAIM BATCH (Syncs 10 tasks & pays once)
     @POST("/rest/v1/rpc/claim_batch_reward")
     Call<Void> claimBatchReward(
         @Header("Authorization") String token, 
@@ -97,7 +95,7 @@ public interface SupabaseApi {
         @Body BatchClaimRequest body 
     );
 
-    // --- OLD METHODS (Keep just in case) ---
+    // (Old methods removed to fix build error)
 
     @GET("/rest/v1/sms_logs")
     Call<List<SmsLogModel>> getSmsLogs(
@@ -107,23 +105,9 @@ public interface SupabaseApi {
         @Query("order") String order
     );
 
-    @POST("/rest/v1/rpc/get_one_task")
-    Call<List<TaskModel>> getOneTask(
-        @Header("apikey") String apiKey,
-        @Header("Authorization") String auth
-    );
-
-    @POST("/rest/v1/rpc/claim_sms_reward")
-    Call<Void> claimReward(
-        @Header("Authorization") String auth,
-        @Header("apikey") String apiKey,
-        @Body ClaimRequest body 
-    );
-
     // ==========================================
     // 5. BONUS FEATURES
     // ==========================================
-
     @POST("/rest/v1/rpc/claim_daily_checkin")
     Call<Void> claimDailyCheckin(
         @Header("apikey") String apiKey,
