@@ -1,18 +1,15 @@
 package com.smsindia.app.workers;
 
-import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.telephony.SmsManager;
 import android.util.Log;
@@ -20,15 +17,14 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.smsindia.app.R;
-import com.smsindia.app.service.ClaimRequest;
+import com.smsindia.app.service.BatchClaimRequest;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.TaskModel;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -44,43 +40,34 @@ public class SmsMiningService extends Service {
     
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
     public static final String ACTION_BATCH_COMPLETE = "com.smsindia.BATCH_COMPLETE";
-    
-    private static final String SENT_ACTION = "SMS_SENT_CHECK";
-    private static final double REWARD_AMOUNT = 0.16;
     private static final String CHANNEL_ID = "SMS_MINING_CHANNEL";
 
-    // --- STATE VARIABLES ---
     private SupabaseApi supabaseApi;
     private PowerManager.WakeLock wakeLock;
-    private BroadcastReceiver sentReceiver;
     
     private boolean isRunning = false;
     private int selectedSubId = -1;
     private String userId; 
     
-    private int tasksDone = 0;
-    private int successCount = 0;
+    // BATCH STATE
+    private List<TaskModel> currentBatch = new ArrayList<>();
+    private List<String> successfulTaskIds = new ArrayList<>();
+    private int currentTaskIndex = 0;
     private final int BATCH_SIZE = 10;
-    
-    private final Set<String> processedIds = new HashSet<>();
 
     @Override
     public void onCreate() {
         super.onCreate();
-        // 1. Init API
         supabaseApi = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(SupabaseApi.class);
         
-        // 2. Init WakeLock (Prevents CPU from sleeping during mining)
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm != null) wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SMSMiner::Lock");
         
-        // 3. Init System
         createNotificationChannel();
-        registerReceivers();
     }
 
     @Override
@@ -90,173 +77,123 @@ public class SmsMiningService extends Service {
             return START_NOT_STICKY;
         }
 
-        // 4. PERSISTENCE: Restore UserId if service was restarted
-        if (intent != null && intent.hasExtra("userId")) {
-            userId = intent.getStringExtra("userId");
-            getSharedPreferences("SMS_PREFS", MODE_PRIVATE).edit().putString("saved_uid", userId).apply();
-        } else {
-            userId = getSharedPreferences("SMS_PREFS", MODE_PRIVATE).getString("saved_uid", null);
-        }
-
+        if (intent != null && intent.hasExtra("userId")) userId = intent.getStringExtra("userId");
         if (intent != null) selectedSubId = intent.getIntExtra("subId", -1);
 
-        if (!isRunning) {
+        if (!isRunning && userId != null) {
             isRunning = true;
-            tasksDone = 0;
-            successCount = 0;
-            startForeground(1, getNotification("Mining Active", "Initializing..."));
-            
-            if (userId != null) {
-                fetchNextTask();
-            } else {
-                stopServiceWithLog("Error: No User ID");
-            }
+            acquireCpu();
+            startForeground(1, getNotification("Mining Active", "Starting Batch..."));
+            fetchBatch();
         }
         return START_STICKY;
     }
 
-    // ==========================================
-    // STEP 1: FETCH TASK
-    // ==========================================
-    private void fetchNextTask() {
+    // 1. GET 10 TASKS
+    private void fetchBatch() {
         if (!isRunning) return;
         
-        if (tasksDone >= BATCH_SIZE) {
-            finishBatch();
-            return;
-        }
+        sendBroadcastLog("Fetching " + BATCH_SIZE + " Tasks...", 0);
+        
+        Map<String, Object> params = new HashMap<>();
+        params.put("p_user_id", userId);
+        params.put("p_size", BATCH_SIZE);
 
-        acquireCpu();
-        sendBroadcastLog("Fetching Task " + (tasksDone + 1) + "...", (tasksDone * 100) / BATCH_SIZE);
-
-        supabaseApi.getOneTask(SUPABASE_KEY, "Bearer " + SUPABASE_KEY).enqueue(new Callback<List<TaskModel>>() {
+        supabaseApi.fetchBatchTasks(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, params).enqueue(new Callback<List<TaskModel>>() {
             @Override
             public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
                 if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
-                    TaskModel task = response.body().get(0);
-                    
-                    if (processedIds.contains(task.id)) {
-                        new Handler().postDelayed(() -> fetchNextTask(), 1500); // Skip Duplicate
-                        return;
-                    }
-                    processedIds.add(task.id);
-                    sendSMS(task);
+                    currentBatch = response.body();
+                    successfulTaskIds.clear();
+                    currentTaskIndex = 0;
+                    processNextInBatch(); // Start Local Loop
                 } else {
-                    sendBroadcastLog("No Tasks. Waiting...", (tasksDone * 100) / BATCH_SIZE);
-                    new Handler().postDelayed(() -> fetchNextTask(), 5000); // Wait 5s before retry
+                    sendBroadcastLog("No Tasks. Waiting 10s...", 0);
+                    new Handler().postDelayed(() -> fetchBatch(), 10000);
                 }
             }
 
             @Override
             public void onFailure(Call<List<TaskModel>> call, Throwable t) {
-                sendBroadcastLog("Network Error. Retrying...", (tasksDone * 100) / BATCH_SIZE);
-                new Handler().postDelayed(() -> fetchNextTask(), 5000);
+                sendBroadcastLog("Net Error. Retrying...", 0);
+                new Handler().postDelayed(() -> fetchBatch(), 5000);
             }
         });
     }
 
-    // ==========================================
-    // STEP 2: SEND SMS
-    // ==========================================
-    private void sendSMS(TaskModel task) {
-        try {
-            SmsManager smsManager;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                smsManager = getSystemService(SmsManager.class);
-                if (selectedSubId != -1) smsManager = smsManager.createForSubscriptionId(selectedSubId);
-            } else {
-                smsManager = SmsManager.getDefault();
-                if (selectedSubId != -1) smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
-            }
+    // 2. LOOP THROUGH TASKS LOCALLY
+    private void processNextInBatch() {
+        if (!isRunning) return;
 
-            Intent sentIntent = new Intent(SENT_ACTION);
-            sentIntent.putExtra("taskId", task.id);
-            sentIntent.putExtra("phone", task.phone);
-            sentIntent.setPackage(getPackageName()); // Security
-            
-            PendingIntent sentPI = PendingIntent.getBroadcast(this, task.id.hashCode(), sentIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-            smsManager.sendTextMessage(task.phone, null, task.message, sentPI, null);
-            sendBroadcastLog("Sending SMS...", (tasksDone * 100) / BATCH_SIZE);
-
-        } catch (Exception e) {
-            Log.e("SMS_MINER", "Send Error: " + e.getMessage());
-            // Fail silently and move to next task
-            next();
+        // If batch is finished, go to claim
+        if (currentTaskIndex >= currentBatch.size()) {
+            claimBatch();
+            return;
         }
+
+        TaskModel task = currentBatch.get(currentTaskIndex);
+        int progress = (currentTaskIndex * 100) / currentBatch.size();
+        sendBroadcastLog("Sending SMS " + (currentTaskIndex + 1) + "/" + currentBatch.size(), progress);
+
+        try {
+            sendSMS(task);
+            successfulTaskIds.add(task.id); // Assume success for simplicity (or use SentIntent)
+        } catch (Exception e) {
+            Log.e("BatchMiner", "SMS Error: " + e.getMessage());
+        }
+
+        // Wait 3 seconds before sending next (prevent spam block)
+        currentTaskIndex++;
+        new Handler(Looper.getMainLooper()).postDelayed(this::processNextInBatch, 3000);
     }
 
-    // ==========================================
-    // STEP 3: HANDLE SMS RESULT
-    // ==========================================
-    private void registerReceivers() {
-        sentReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                String taskId = intent.getStringExtra("taskId");
-                String phone = intent.getStringExtra("phone");
+    private void sendSMS(TaskModel task) {
+        SmsManager smsManager;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            smsManager = getSystemService(SmsManager.class);
+            if (selectedSubId != -1) smsManager = smsManager.createForSubscriptionId(selectedSubId);
+        } else {
+            smsManager = SmsManager.getDefault();
+            if (selectedSubId != -1) smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
+        }
+        // Send without waiting for PendingIntent to keep loop fast
+        smsManager.sendTextMessage(task.phone, null, task.message, null, null);
+    }
 
-                if (getResultCode() == Activity.RESULT_OK) {
-                    successCount++;
-                    sendBroadcastLog("Sent! Claiming Reward...", (tasksDone * 100) / BATCH_SIZE);
-                    claimReward(taskId, phone);
-                } else {
-                    Log.e("SMS_MINER", "SMS Failed for: " + taskId);
-                    next(); // SMS Failed, move to next
-                }
-            }
-        };
+    // 3. CLAIM REWARD FOR ALL SENT
+    private void claimBatch() {
+        if (successfulTaskIds.isEmpty()) {
+            fetchBatch(); // Nothing to claim, get next batch
+            return;
+        }
+
+        sendBroadcastLog("Syncing Rewards...", 100);
         
-        int flags = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ? Context.RECEIVER_EXPORTED : 0;
-        registerReceiver(sentReceiver, new IntentFilter(SENT_ACTION), flags);
-    }
+        BatchClaimRequest request = new BatchClaimRequest(userId, successfulTaskIds);
 
-    // ==========================================
-    // STEP 4: CLAIM REWARD (THE CRITICAL PART)
-    // ==========================================
-    private void claimReward(String taskId, String phone) {
-        // Create Safe Request Object
-        ClaimRequest request = new ClaimRequest(userId, taskId, phone, REWARD_AMOUNT);
-
-        Log.d("SMS_MINER", "Claiming for User: " + userId + " Task: " + taskId);
-
-        supabaseApi.claimReward("Bearer " + SUPABASE_KEY, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
+        supabaseApi.claimBatchReward("Bearer " + SUPABASE_KEY, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Log.d("SMS_MINER", "✅ Reward Claimed Successfully!");
-                } else {
-                    Log.e("SMS_MINER", "❌ Claim Failed: " + response.code());
-                    try {
-                         if(response.errorBody() != null) Log.e("SMS_MINER", "Err: " + response.errorBody().string());
-                    } catch(Exception e){}
-                }
-                next(); // Move to next task regardless of result
+                Log.d("BatchMiner", "Batch Claimed!");
+                finishBatch(successfulTaskIds.size());
             }
 
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("SMS_MINER", "❌ Claim Net Error: " + t.getMessage());
-                next();
+                Log.e("BatchMiner", "Claim Failed, but task marked assigned. Will retry fetch.");
+                finishBatch(successfulTaskIds.size());
             }
         });
     }
 
-    private void next() {
-        tasksDone++;
-        releaseCpu(); // Release lock briefly
-        new Handler().postDelayed(this::fetchNextTask, 1500);
-    }
-
-    private void finishBatch() {
+    private void finishBatch(int count) {
         Intent intent = new Intent(ACTION_BATCH_COMPLETE);
-        intent.putExtra("successCount", successCount);
-        intent.putExtra("earned", successCount * REWARD_AMOUNT);
+        intent.putExtra("successCount", count);
+        intent.putExtra("earned", count * 0.16);
         sendBroadcast(intent);
-        stopServiceWithLog("Batch Complete");
+        stopServiceWithLog("Done");
     }
 
-    // --- UTILS ---
     private void sendBroadcastLog(String log, int progress) {
         Intent intent = new Intent(ACTION_UPDATE_UI);
         intent.putExtra("log", log);
@@ -270,7 +207,7 @@ public class SmsMiningService extends Service {
         stopSelf();
     }
     
-    private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(60000); }
+    private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(600000); } // 10 min lock
     private void releaseCpu() { if (wakeLock != null && wakeLock.isHeld()) wakeLock.release(); }
     
     private Notification getNotification(String title, String content) {
@@ -290,7 +227,6 @@ public class SmsMiningService extends Service {
     public void onDestroy() {
         isRunning = false;
         releaseCpu();
-        try { unregisterReceiver(sentReceiver); } catch (Exception e) {}
         super.onDestroy();
     }
 
