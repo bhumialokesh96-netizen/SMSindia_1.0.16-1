@@ -3,7 +3,6 @@ package com.smsindia.app.workers;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Build;
@@ -17,7 +16,7 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.smsindia.app.R;
-import com.smsindia.app.service.BatchClaimRequest;
+import com.smsindia.app.service.BatchResultRequest; // ✅ Changed to Result Request
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.TaskModel;
 
@@ -51,7 +50,8 @@ public class SmsMiningService extends Service {
     
     // BATCH STATE
     private List<TaskModel> currentBatch = new ArrayList<>();
-    private List<String> successfulTaskIds = new ArrayList<>();
+    private List<String> successList = new ArrayList<>(); // ✅ Track Success
+    private List<String> failList = new ArrayList<>();    // ✅ Track Failures
     private int currentTaskIndex = 0;
     private final int BATCH_SIZE = 10;
 
@@ -89,11 +89,13 @@ public class SmsMiningService extends Service {
         return START_STICKY;
     }
 
-    // 1. GET 10 TASKS
+    // ==========================================
+    // 1. FETCH TASKS (The Lock Phase)
+    // ==========================================
     private void fetchBatch() {
         if (!isRunning) return;
         
-        sendBroadcastLog("Fetching " + BATCH_SIZE + " Tasks...", 0);
+        sendBroadcastLog("Fetching Tasks...", 0);
         
         Map<String, Object> params = new HashMap<>();
         params.put("p_user_id", userId);
@@ -104,7 +106,8 @@ public class SmsMiningService extends Service {
             public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
                 if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                     currentBatch = response.body();
-                    successfulTaskIds.clear();
+                    successList.clear();
+                    failList.clear();
                     currentTaskIndex = 0;
                     processNextInBatch(); // Start Local Loop
                 } else {
@@ -121,24 +124,28 @@ public class SmsMiningService extends Service {
         });
     }
 
-    // 2. LOOP THROUGH TASKS LOCALLY
+    // ==========================================
+    // 2. PROCESS LOOP (Send or Fail)
+    // ==========================================
     private void processNextInBatch() {
         if (!isRunning) return;
 
-        // If batch is finished, go to claim
+        // If batch is finished, submit results
         if (currentTaskIndex >= currentBatch.size()) {
-            claimBatch();
+            submitResults();
             return;
         }
 
         TaskModel task = currentBatch.get(currentTaskIndex);
         int progress = (currentTaskIndex * 100) / currentBatch.size();
-        sendBroadcastLog("Sending SMS " + (currentTaskIndex + 1) + "/" + currentBatch.size(), progress);
-
+        
         try {
             sendSMS(task);
-            successfulTaskIds.add(task.id); // Assume success for simplicity (or use SentIntent)
+            successList.add(task.id); // ✅ Add to Success List
+            sendBroadcastLog("Sent: " + task.phone, progress);
         } catch (Exception e) {
+            failList.add(task.id);    // ✅ Add to Fail List
+            sendBroadcastLog("Failed: " + task.phone, progress);
             Log.e("BatchMiner", "SMS Error: " + e.getMessage());
         }
 
@@ -160,38 +167,42 @@ public class SmsMiningService extends Service {
         smsManager.sendTextMessage(task.phone, null, task.message, null, null);
     }
 
-    // 3. CLAIM REWARD FOR ALL SENT
-    private void claimBatch() {
-        if (successfulTaskIds.isEmpty()) {
-            fetchBatch(); // Nothing to claim, get next batch
+    // ==========================================
+    // 3. SUBMIT RESULTS (The Report Phase)
+    // ==========================================
+    private void submitResults() {
+        // If everything failed, just fetch next batch (don't spam server if net is down)
+        if (successList.isEmpty() && failList.isEmpty()) {
+            fetchBatch(); 
             return;
         }
 
-        sendBroadcastLog("Syncing Rewards...", 100);
+        sendBroadcastLog("Syncing Results...", 100);
         
-        BatchClaimRequest request = new BatchClaimRequest(userId, successfulTaskIds);
+        // Send both Success and Fail lists
+        BatchResultRequest request = new BatchResultRequest(userId, successList, failList);
 
-        supabaseApi.claimBatchReward("Bearer " + SUPABASE_KEY, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
+        supabaseApi.submitBatchResults("Bearer " + SUPABASE_KEY, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                Log.d("BatchMiner", "Batch Claimed!");
-                finishBatch(successfulTaskIds.size());
+                Log.d("BatchMiner", "Batch Submitted!");
+                finishBatch(successList.size()); // Only count successes for UI/Cooldown
             }
 
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("BatchMiner", "Claim Failed, but task marked assigned. Will retry fetch.");
-                finishBatch(successfulTaskIds.size());
+                Log.e("BatchMiner", "Report Failed. Tasks will remain assigned (Safe Mode).");
+                finishBatch(successList.size());
             }
         });
     }
 
-    private void finishBatch(int count) {
+    private void finishBatch(int successCount) {
         Intent intent = new Intent(ACTION_BATCH_COMPLETE);
-        intent.putExtra("successCount", count);
-        intent.putExtra("earned", count * 0.16);
+        intent.putExtra("successCount", successCount);
+        intent.putExtra("earned", successCount * 0.16); // UI Calculation only
         sendBroadcast(intent);
-        stopServiceWithLog("Done");
+        stopServiceWithLog("Batch Done");
     }
 
     private void sendBroadcastLog(String log, int progress) {
@@ -207,7 +218,7 @@ public class SmsMiningService extends Service {
         stopSelf();
     }
     
-    private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(600000); } // 10 min lock
+    private void acquireCpu() { if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(600000); } 
     private void releaseCpu() { if (wakeLock != null && wakeLock.isHeld()) wakeLock.release(); }
     
     private Notification getNotification(String title, String content) {

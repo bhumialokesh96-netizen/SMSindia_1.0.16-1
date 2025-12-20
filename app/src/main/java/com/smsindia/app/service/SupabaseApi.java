@@ -80,6 +80,9 @@ public interface SupabaseApi {
     // ==========================================
 
     // ✅ FETCH BATCH (Downloads 10 tasks & locks them)
+       // ... other methods
+
+    // 1. Fetch Work
     @POST("/rest/v1/rpc/fetch_batch_tasks")
     Call<List<TaskModel>> fetchBatchTasks(
         @Header("Authorization") String token, 
@@ -87,13 +90,14 @@ public interface SupabaseApi {
         @Body Map<String, Object> body 
     );
 
-    // ✅ CLAIM BATCH (Syncs 10 tasks & pays once)
-    @POST("/rest/v1/rpc/claim_batch_reward")
-    Call<Void> claimBatchReward(
+    // 2. Submit Results (Success + Failures)
+    @POST("/rest/v1/rpc/submit_batch_results")
+    Call<Void> submitBatchResults(
         @Header("Authorization") String token, 
         @Header("apikey") String apiKey,
-        @Body BatchClaimRequest body 
+        @Body BatchResultRequest body 
     );
+
 
     // (Old methods removed to fix build error)
 
