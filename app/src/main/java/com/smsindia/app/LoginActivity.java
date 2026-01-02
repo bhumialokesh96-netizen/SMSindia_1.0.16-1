@@ -559,20 +559,19 @@ public class LoginActivity extends AppCompatActivity {
     // ===================== REST OF YOUR EXISTING CODE =====================
     // 🔒 CORE SECURITY
     private String getHardwareDeviceId(Context context) {
-        UUID widevineUuid = new UUID(-0x121074568629b532L, -0x5c37d8232ae2de13L);
-        try {
-            MediaDrm mediaDrm = new MediaDrm(widevineUuid);
-            byte[] widevineId = mediaDrm.getPropertyByteArray(MediaDrm.PROPERTY_DEVICE_UNIQUE_ID);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                mediaDrm.close();
-            } else {
-                mediaDrm.release();
-            }
-            return Base64.encodeToString(widevineId, Base64.NO_WRAP).trim();
-        } catch (Exception e) {
-            return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
-        }
+    try {
+        UUID uuid = new UUID(-0x121074568629b532L, -0x5c37d8232ae2de13L);
+        MediaDrm drm = new MediaDrm(uuid);
+        byte[] id = drm.getPropertyByteArray(MediaDrm.PROPERTY_DEVICE_UNIQUE_ID);
+        drm.close();
+        return Base64.encodeToString(id, Base64.NO_WRAP);
+    } catch (Throwable t) {   // IMPORTANT
+        return Settings.Secure.getString(
+            context.getContentResolver(),
+            Settings.Secure.ANDROID_ID
+        );
     }
+}
 
     private void checkClipboardForReferral() {
         ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
