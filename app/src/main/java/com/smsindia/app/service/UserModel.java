@@ -6,6 +6,7 @@ public class UserModel {
 
     @SerializedName("id") public String id; 
     @SerializedName("phone") public String phone;
+    @SerializedName("email") public String email;  // ADD THIS LINE
     @SerializedName("password") public String password; 
     @SerializedName("device_id") public String deviceId;
 

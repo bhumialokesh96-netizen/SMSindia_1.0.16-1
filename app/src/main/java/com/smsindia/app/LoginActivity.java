@@ -285,8 +285,9 @@ public class LoginActivity extends AppCompatActivity {
         Map<String, Object> updateMap = new HashMap<>();
         updateMap.put("password", newPassword);
         
-        supabaseApi.updateUserPassword(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, 
-                "eq.phone", resetPhone, updateMap)
+        // FIXED: Changed updateUserPassword to updateUser
+        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, 
+                resetPhone, updateMap)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
@@ -318,8 +319,9 @@ public class LoginActivity extends AppCompatActivity {
         Map<String, Object> updateMap = new HashMap<>();
         updateMap.put("verified", true);
         
+        // FIXED: Changed parameters
         supabaseApi.updateOtp(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, 
-                "eq.phone", resetPhone, updateMap)
+                resetPhone, updateMap)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
@@ -484,7 +486,9 @@ public class LoginActivity extends AppCompatActivity {
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
                     tokenManager.saveToken(response.body().token);
-                    createUserInDatabase(phone, email, password, referCode, response.body().user.id);
+                    // FIXED: Get user ID properly
+                    String userId = response.body().user != null ? response.body().user.id : newUserId;
+                    createUserInDatabase(phone, email, password, referCode, userId);
                 } else {
                     signupBtn.setEnabled(true);
                     signupBtn.setText("REGISTER");

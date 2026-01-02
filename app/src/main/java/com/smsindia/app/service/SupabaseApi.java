@@ -142,21 +142,24 @@ public interface SupabaseApi {
         @Query("select") String select
     );
 
-    // 3. Update OTP (mark as verified)
+    // 3. Update OTP (mark as verified) - FIXED SIGNATURE
     @PATCH("/rest/v1/otp_verifications")
     Call<Void> updateOtp(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
-        @Query("select") String select,
+        @Query("phone") String phoneFilter,  // Changed from select to phone
         @Body Map<String, Object> updateData
     );
 
-    // 4. Update user password (for password reset)
-    @PATCH("/rest/v1/users")
-    Call<Void> updateUserPassword(
-        @Header("apikey") String apiKey,
-        @Header("Authorization") String auth,
-        @Query("select") String select,
-        @Body Map<String, Object> updateData
-    );
+    // 4. REMOVE THIS METHOD - Use updateUser() instead
+    // @PATCH("/rest/v1/users")
+    // Call<Void> updateUserPassword(
+    //     @Header("apikey") String apiKey,
+    //     @Header("Authorization") String auth,
+    //     @Query("select") String select,
+    //     @Body Map<String, Object> updateData
+    // );
+    
+    // Comment out or delete the updateUserPassword method
+    // You already have updateUser() method at the top
 }
