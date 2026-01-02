@@ -23,7 +23,6 @@ import com.smsindia.app.service.AuthApi;
 import com.smsindia.app.service.AuthResponse;
 import com.smsindia.app.service.LoginRequest;
 import com.smsindia.app.service.TokenManager;
-import com.smsindia.app.service.AuthApi;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
 
@@ -138,14 +137,14 @@ public class LoginActivity extends AppCompatActivity {
         String email = phone + "@smsindia.com";
 
         // Create login request
-        LoginRequest loginRequest = new LoginRequest.LoginRequest();
+        LoginRequest loginRequest = new LoginRequest(); // FIXED!
         loginRequest.email = email;
         loginRequest.password = password;
 
         // Step 1: Get JWT token from Supabase Auth
-        authApi.login(SUPABASE_KEY, loginRequest).enqueue(new Callback<AuthModels.AuthResponse>() {
+        authApi.login(SUPABASE_KEY, loginRequest).enqueue(new Callback<AuthResponse>() { // FIXED!
             @Override
-            public void onResponse(Call<AuthModels.AuthResponse> call, Response<AuthModels.AuthResponse> response) {
+            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) { // FIXED!
                 if (response.isSuccessful() && response.body() != null) {
                     // Save JWT token
                     tokenManager.saveToken(response.body().token);
@@ -166,7 +165,7 @@ public class LoginActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(Call<AuthModels.AuthResponse> call, Throwable t) {
+            public void onFailure(Call<AuthResponse> call, Throwable t) { // FIXED!
                 loginBtn.setEnabled(true);
                 loginBtn.setText("LOGIN");
                 Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
@@ -289,13 +288,13 @@ public class LoginActivity extends AppCompatActivity {
         String newUserId = UUID.randomUUID().toString();
 
         // Step 1: Sign up in Supabase Auth
-        LoginRequest.LoginRequest signupRequest = new LoginRequest.LoginRequest();
+        LoginRequest signupRequest = new LoginRequest(); // FIXED!
         signupRequest.email = email;
         signupRequest.password = password;
 
-        authApi.signup(SUPABASE_KEY, signupRequest).enqueue(new Callback<AuthModels.AuthResponse>() {
+        authApi.signup(SUPABASE_KEY, signupRequest).enqueue(new Callback<AuthResponse>() { // FIXED!
             @Override
-            public void onResponse(Call<AuthModels.AuthResponse> call, Response<AuthModels.AuthResponse> response) {
+            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) { // FIXED!
                 if (response.isSuccessful() && response.body() != null) {
                     // Save JWT token
                     tokenManager.saveToken(response.body().token);
@@ -310,7 +309,7 @@ public class LoginActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(Call<AuthModels.AuthResponse> call, Throwable t) {
+            public void onFailure(Call<AuthResponse> call, Throwable t) { // FIXED!
                 signupBtn.setEnabled(true);
                 signupBtn.setText("REGISTER");
                 Toast.makeText(LoginActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
@@ -367,13 +366,13 @@ public class LoginActivity extends AppCompatActivity {
     private void createAuthRecordForExistingUser(String phone, String password, UserModel user) {
         String email = phone + "@smsindia.com";
         
-        LoginRequest.LoginRequest signupRequest = new LoginRequest.LoginRequest();
+        LoginRequest signupRequest = new LoginRequest(); // FIXED!
         signupRequest.email = email;
         signupRequest.password = password;
 
-        authApi.signup(SUPABASE_KEY, signupRequest).enqueue(new Callback<AuthModels.AuthResponse>() {
+        authApi.signup(SUPABASE_KEY, signupRequest).enqueue(new Callback<AuthResponse>() { // FIXED!
             @Override
-            public void onResponse(Call<AuthModels.AuthResponse> call, Response<AuthModels.AuthResponse> response) {
+            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) { // FIXED!
                 if (response.isSuccessful() && response.body() != null) {
                     tokenManager.saveToken(response.body().token);
                     saveLoginAndRedirect(user);
@@ -385,7 +384,7 @@ public class LoginActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(Call<AuthModels.AuthResponse> call, Throwable t) {
+            public void onFailure(Call<AuthResponse> call, Throwable t) { // FIXED!
                 loginBtn.setEnabled(true);
                 loginBtn.setText("LOGIN");
                 Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
