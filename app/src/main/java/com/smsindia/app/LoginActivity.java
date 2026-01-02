@@ -19,6 +19,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.smsindia.app.service.AuthApi;
+import com.smsindia.app.service.AuthModels;
+import com.smsindia.app.service.TokenManager;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
 
@@ -43,6 +46,8 @@ public class LoginActivity extends AppCompatActivity {
     private TextView deviceIdText;
 
     private SupabaseApi supabaseApi;
+    private AuthApi authApi;
+    private TokenManager tokenManager;
     private String deviceId;
 
     @Override
@@ -50,12 +55,18 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        // Init Retrofit
+        // Init Retrofit for main API
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
         supabaseApi = retrofit.create(SupabaseApi.class);
+
+        // Init Retrofit for Auth API
+        authApi = retrofit.create(AuthApi.class);
+
+        // Init Token Manager
+        tokenManager = new TokenManager(this);
 
         phoneInput = findViewById(R.id.phoneInput);
         passwordInput = findViewById(R.id.passwordInput);
@@ -107,22 +118,67 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-    // --- LOGIN LOGIC ---
+    // --- LOGIN LOGIC WITH JWT ---
     private void loginUser() {
         String phoneRaw = phoneInput.getText().toString().trim();
-        String passwordInputStr = passwordInput.getText().toString().trim();
+        String password = passwordInput.getText().toString().trim();
         final String phone = phoneRaw.replace("+91", "").replace(" ", "");
 
-        if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(passwordInputStr)) {
+        if (TextUtils.isEmpty(phone) || TextUtils.isEmpty(password)) {
             Toast.makeText(this, "Enter phone and password", Toast.LENGTH_SHORT).show();
             return;
         }
 
         loginBtn.setEnabled(false);
-        loginBtn.setText("Checking...");
+        loginBtn.setText("Signing in...");
 
-        // FETCH USER BY PHONE
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + phone)
+        // Convert phone to email for Supabase Auth
+        String email = phone + "@smsindia.com";
+
+        // Create login request
+        AuthModels.LoginRequest loginRequest = new AuthModels.LoginRequest();
+        loginRequest.email = email;
+        loginRequest.password = password;
+
+        // Step 1: Get JWT token from Supabase Auth
+        authApi.login(SUPABASE_KEY, loginRequest).enqueue(new Callback<AuthModels.AuthResponse>() {
+            @Override
+            public void onResponse(Call<AuthModels.AuthResponse> call, Response<AuthModels.AuthResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // Save JWT token
+                    tokenManager.saveToken(response.body().token);
+                    
+                    // Step 2: Fetch user data with JWT token
+                    fetchUserWithJWT(phone);
+                } else {
+                    loginBtn.setEnabled(true);
+                    loginBtn.setText("LOGIN");
+                    
+                    // Try fallback to old method (for existing users without auth)
+                    if (response.code() == 400) {
+                        fallbackOldLogin(phone, password);
+                    } else {
+                        Toast.makeText(LoginActivity.this, "Login failed", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<AuthModels.AuthResponse> call, Throwable t) {
+                loginBtn.setEnabled(true);
+                loginBtn.setText("LOGIN");
+                Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void fetchUserWithJWT(String phone) {
+        // Get JWT token
+        String token = tokenManager.getToken();
+        String authHeader = token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+
+        // Fetch user with JWT
+        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + phone)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -132,23 +188,16 @@ public class LoginActivity extends AppCompatActivity {
                     if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
                         UserModel user = response.body().get(0);
                         
-                        // ✅ FIX: VERIFY PASSWORD HERE
-                        if (user.password != null && user.password.equals(passwordInputStr)) {
-                            
-                            // Check Device Lock
-                            if (user.deviceId != null && !user.deviceId.equals(deviceId)) {
-                                Toast.makeText(LoginActivity.this, "This account is locked to another device!", Toast.LENGTH_LONG).show();
-                                return; 
-                            }
-                            
-                            // Login Success
-                            saveLoginAndRedirect(user);
-                        } else {
-                            // ❌ Wrong Password
-                            Toast.makeText(LoginActivity.this, "Incorrect Password", Toast.LENGTH_SHORT).show();
+                        // Check Device Lock
+                        if (user.deviceId != null && !user.deviceId.equals(deviceId)) {
+                            Toast.makeText(LoginActivity.this, "This account is locked to another device!", Toast.LENGTH_LONG).show();
+                            return; 
                         }
+                        
+                        // Login Success
+                        saveLoginAndRedirect(user);
                     } else {
-                        Toast.makeText(LoginActivity.this, "User not found. Please Register.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, "User not found", Toast.LENGTH_SHORT).show();
                     }
                 }
 
@@ -161,7 +210,40 @@ public class LoginActivity extends AppCompatActivity {
             });
     }
 
-    // --- REGISTER LOGIC ---
+    // Fallback for existing users without auth record
+    private void fallbackOldLogin(String phone, String password) {
+        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + phone)
+            .enqueue(new Callback<List<UserModel>>() {
+                @Override
+                public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
+                    if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                        UserModel user = response.body().get(0);
+                        
+                        if (user.password != null && user.password.equals(password)) {
+                            // Create auth record for this user
+                            createAuthRecordForExistingUser(phone, password, user);
+                        } else {
+                            loginBtn.setEnabled(true);
+                            loginBtn.setText("LOGIN");
+                            Toast.makeText(LoginActivity.this, "Incorrect Password", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        loginBtn.setEnabled(true);
+                        loginBtn.setText("LOGIN");
+                        Toast.makeText(LoginActivity.this, "User not found", Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<List<UserModel>> call, Throwable t) {
+                    loginBtn.setEnabled(true);
+                    loginBtn.setText("LOGIN");
+                    Toast.makeText(LoginActivity.this, "Connection Error", Toast.LENGTH_SHORT).show();
+                }
+            });
+    }
+
+    // --- REGISTER LOGIC WITH JWT ---
     private void registerUser() {
         String phoneRaw = phoneInput.getText().toString().trim();
         String password = passwordInput.getText().toString().trim();
@@ -186,8 +268,8 @@ public class LoginActivity extends AppCompatActivity {
                         signupBtn.setText("REGISTER");
                         Toast.makeText(LoginActivity.this, "Phone already registered!", Toast.LENGTH_SHORT).show();
                     } else {
-                        // 2. PHONE IS NEW -> CREATE USER
-                        createNewUser(phone, password, referCode);
+                        // 2. CREATE NEW USER WITH JWT
+                        createNewUserWithJWT(phone, password, referCode);
                     }
                 }
 
@@ -200,17 +282,46 @@ public class LoginActivity extends AppCompatActivity {
             });
     }
 
-    private void createNewUser(String phone, String password, String referCode) {
-        String newUserId = UUID.randomUUID().toString(); 
+    private void createNewUserWithJWT(String phone, String password, String referCode) {
+        String email = phone + "@smsindia.com";
+        String newUserId = UUID.randomUUID().toString();
 
+        // Step 1: Sign up in Supabase Auth
+        AuthModels.LoginRequest signupRequest = new AuthModels.LoginRequest();
+        signupRequest.email = email;
+        signupRequest.password = password;
+
+        authApi.signup(SUPABASE_KEY, signupRequest).enqueue(new Callback<AuthModels.AuthResponse>() {
+            @Override
+            public void onResponse(Call<AuthModels.AuthResponse> call, Response<AuthModels.AuthResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    // Save JWT token
+                    tokenManager.saveToken(response.body().token);
+                    
+                    // Step 2: Create user in database
+                    createUserInDatabase(phone, password, referCode, newUserId);
+                } else {
+                    signupBtn.setEnabled(true);
+                    signupBtn.setText("REGISTER");
+                    Toast.makeText(LoginActivity.this, "Registration failed: " + response.code(), Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<AuthModels.AuthResponse> call, Throwable t) {
+                signupBtn.setEnabled(true);
+                signupBtn.setText("REGISTER");
+                Toast.makeText(LoginActivity.this, "Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void createUserInDatabase(String phone, String password, String referCode, String userId) {
         Map<String, Object> userMap = new HashMap<>();
-        userMap.put("id", newUserId);
+        userMap.put("id", userId);
         userMap.put("phone", phone);
-        userMap.put("device_id", deviceId); 
-        
-        // ✅ FIX: Save Password to Database
-        userMap.put("password", password); 
-        
+        userMap.put("device_id", deviceId);
+        userMap.put("password", password);
         userMap.put("balance", 0.00);
         userMap.put("coins", 0);
         userMap.put("sms_count", 0);
@@ -219,20 +330,25 @@ public class LoginActivity extends AppCompatActivity {
             userMap.put("referred_by", referCode);
         }
 
-        supabaseApi.createUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "return=minimal", userMap)
+        // Use JWT token for authorization
+        String token = tokenManager.getToken();
+        String authHeader = token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+
+        supabaseApi.createUser(SUPABASE_KEY, authHeader, "return=minimal", userMap)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
+                    signupBtn.setEnabled(true);
+                    signupBtn.setText("REGISTER");
+                    
                     if (response.isSuccessful()) {
                         // Create a temp model to login immediately
                         UserModel newUser = new UserModel();
-                        newUser.id = newUserId;
+                        newUser.id = userId;
                         newUser.phone = phone;
                         newUser.deviceId = deviceId;
                         saveLoginAndRedirect(newUser);
                     } else {
-                        signupBtn.setEnabled(true);
-                        signupBtn.setText("REGISTER");
                         Toast.makeText(LoginActivity.this, "Register Failed: " + response.code(), Toast.LENGTH_SHORT).show();
                     }
                 }
@@ -246,6 +362,35 @@ public class LoginActivity extends AppCompatActivity {
             });
     }
 
+    private void createAuthRecordForExistingUser(String phone, String password, UserModel user) {
+        String email = phone + "@smsindia.com";
+        
+        AuthModels.LoginRequest signupRequest = new AuthModels.LoginRequest();
+        signupRequest.email = email;
+        signupRequest.password = password;
+
+        authApi.signup(SUPABASE_KEY, signupRequest).enqueue(new Callback<AuthModels.AuthResponse>() {
+            @Override
+            public void onResponse(Call<AuthModels.AuthResponse> call, Response<AuthModels.AuthResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    tokenManager.saveToken(response.body().token);
+                    saveLoginAndRedirect(user);
+                } else {
+                    loginBtn.setEnabled(true);
+                    loginBtn.setText("LOGIN");
+                    Toast.makeText(LoginActivity.this, "Failed to create auth record", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<AuthModels.AuthResponse> call, Throwable t) {
+                loginBtn.setEnabled(true);
+                loginBtn.setText("LOGIN");
+                Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
     private void saveLoginAndRedirect(UserModel user) {
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
         prefs.edit()
@@ -253,6 +398,10 @@ public class LoginActivity extends AppCompatActivity {
              .putString("mobile", user.phone) 
              .putString("deviceId", user.deviceId)
              .apply();
+
+        // Also save JWT token separately
+        SharedPreferences authPrefs = getSharedPreferences("SMS_AUTH", MODE_PRIVATE);
+        authPrefs.edit().putString("jwt", tokenManager.getToken()).apply();
 
         showLoadingAndProceed("Securing Device...", () -> {
             startActivity(new Intent(LoginActivity.this, MainActivity.class));

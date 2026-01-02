@@ -16,9 +16,10 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.smsindia.app.R;
-import com.smsindia.app.service.BatchResultRequest; // ✅ Changed to Result Request
+import com.smsindia.app.service.BatchResultRequest;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.TaskModel;
+import com.smsindia.app.service.TokenManager; // ADD THIS IMPORT
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ public class SmsMiningService extends Service {
     private static final String CHANNEL_ID = "SMS_MINING_CHANNEL";
 
     private SupabaseApi supabaseApi;
+    private TokenManager tokenManager; // ADD THIS VARIABLE
     private PowerManager.WakeLock wakeLock;
     
     private boolean isRunning = false;
@@ -50,14 +52,19 @@ public class SmsMiningService extends Service {
     
     // BATCH STATE
     private List<TaskModel> currentBatch = new ArrayList<>();
-    private List<String> successList = new ArrayList<>(); // ✅ Track Success
-    private List<String> failList = new ArrayList<>();    // ✅ Track Failures
+    private List<String> successList = new ArrayList<>();
+    private List<String> failList = new ArrayList<>();
     private int currentTaskIndex = 0;
     private final int BATCH_SIZE = 10;
 
     @Override
     public void onCreate() {
         super.onCreate();
+        
+        // Initialize TokenManager
+        tokenManager = new TokenManager(this);
+        
+        // Initialize Supabase API
         supabaseApi = new Retrofit.Builder()
                 .baseUrl(SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
@@ -101,7 +108,11 @@ public class SmsMiningService extends Service {
         params.put("p_user_id", userId);
         params.put("p_size", BATCH_SIZE);
 
-        supabaseApi.fetchBatchTasks(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, params).enqueue(new Callback<List<TaskModel>>() {
+        // Get JWT token for authorization
+        String token = tokenManager.getToken();
+        String authHeader = token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+
+        supabaseApi.fetchBatchTasks(authHeader, SUPABASE_KEY, params).enqueue(new Callback<List<TaskModel>>() {
             @Override
             public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
                 if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
@@ -109,7 +120,7 @@ public class SmsMiningService extends Service {
                     successList.clear();
                     failList.clear();
                     currentTaskIndex = 0;
-                    processNextInBatch(); // Start Local Loop
+                    processNextInBatch();
                 } else {
                     sendBroadcastLog("No Tasks. Waiting 10s...", 0);
                     new Handler().postDelayed(() -> fetchBatch(), 10000);
@@ -130,7 +141,6 @@ public class SmsMiningService extends Service {
     private void processNextInBatch() {
         if (!isRunning) return;
 
-        // If batch is finished, submit results
         if (currentTaskIndex >= currentBatch.size()) {
             submitResults();
             return;
@@ -141,15 +151,14 @@ public class SmsMiningService extends Service {
         
         try {
             sendSMS(task);
-            successList.add(task.id); // ✅ Add to Success List
+            successList.add(task.id);
             sendBroadcastLog("Sent: " + task.phone, progress);
         } catch (Exception e) {
-            failList.add(task.id);    // ✅ Add to Fail List
+            failList.add(task.id);
             sendBroadcastLog("Failed: " + task.phone, progress);
             Log.e("BatchMiner", "SMS Error: " + e.getMessage());
         }
 
-        // Wait 3 seconds before sending next (prevent spam block)
         currentTaskIndex++;
         new Handler(Looper.getMainLooper()).postDelayed(this::processNextInBatch, 3000);
     }
@@ -163,7 +172,6 @@ public class SmsMiningService extends Service {
             smsManager = SmsManager.getDefault();
             if (selectedSubId != -1) smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
         }
-        // Send without waiting for PendingIntent to keep loop fast
         smsManager.sendTextMessage(task.phone, null, task.message, null, null);
     }
 
@@ -171,7 +179,6 @@ public class SmsMiningService extends Service {
     // 3. SUBMIT RESULTS (The Report Phase)
     // ==========================================
     private void submitResults() {
-        // If everything failed, just fetch next batch (don't spam server if net is down)
         if (successList.isEmpty() && failList.isEmpty()) {
             fetchBatch(); 
             return;
@@ -179,14 +186,17 @@ public class SmsMiningService extends Service {
 
         sendBroadcastLog("Syncing Results...", 100);
         
-        // Send both Success and Fail lists
         BatchResultRequest request = new BatchResultRequest(userId, successList, failList);
 
-        supabaseApi.submitBatchResults("Bearer " + SUPABASE_KEY, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
+        // Get JWT token for authorization
+        String token = tokenManager.getToken();
+        String authHeader = token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+
+        supabaseApi.submitBatchResults(authHeader, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 Log.d("BatchMiner", "Batch Submitted!");
-                finishBatch(successList.size()); // Only count successes for UI/Cooldown
+                finishBatch(successList.size());
             }
 
             @Override
@@ -200,7 +210,7 @@ public class SmsMiningService extends Service {
     private void finishBatch(int successCount) {
         Intent intent = new Intent(ACTION_BATCH_COMPLETE);
         intent.putExtra("successCount", successCount);
-        intent.putExtra("earned", successCount * 0.16); // UI Calculation only
+        intent.putExtra("earned", successCount * 0.16);
         sendBroadcast(intent);
         stopServiceWithLog("Batch Done");
     }

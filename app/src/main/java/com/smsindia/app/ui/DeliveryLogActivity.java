@@ -1,5 +1,6 @@
 package com.smsindia.app.ui;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -50,7 +51,6 @@ public class DeliveryLogActivity extends AppCompatActivity {
         supabaseApi = retrofit.create(SupabaseApi.class);
 
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
-        // CRITICAL: Get the UUID, not just the phone number
         userIdUUID = prefs.getString("userId", "");
 
         if (userIdUUID.isEmpty()) {
@@ -62,13 +62,25 @@ public class DeliveryLogActivity extends AppCompatActivity {
         loadLogs();
     }
 
+    // ==========================================
+    // HELPER METHOD: GET JWT TOKEN
+    // ==========================================
+    private String getAuthHeader() {
+        SharedPreferences authPrefs = getSharedPreferences("SMS_AUTH", MODE_PRIVATE);
+        String token = authPrefs.getString("jwt", null);
+        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+    }
+
     private void loadLogs() {
         // Show loading state
         logsContainer.removeAllViews();
         addText("Loading history...", Color.GRAY);
 
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
         // Fetch logs: WHERE user_id = UUID ORDER BY created_at DESC
-        supabaseApi.getSmsLogs(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + userIdUUID, "created_at.desc")
+        supabaseApi.getSmsLogs(SUPABASE_KEY, authHeader, "eq." + userIdUUID, "created_at.desc")
             .enqueue(new Callback<List<SmsLogModel>>() {
                 @Override
                 public void onResponse(Call<List<SmsLogModel>> call, Response<List<SmsLogModel>> response) {

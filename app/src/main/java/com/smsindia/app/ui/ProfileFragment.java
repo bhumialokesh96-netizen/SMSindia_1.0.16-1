@@ -1,11 +1,12 @@
 package com.smsindia.app.ui;
 
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
-import android.net.Uri; // ✅ Added for opening links
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -23,7 +24,7 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.LoginActivity;
 import com.smsindia.app.R;
-import com.smsindia.app.service.AppConfigModel; // ✅ Added for Config
+import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
 
@@ -73,7 +74,7 @@ public class ProfileFragment extends Fragment {
         
         Button btnWithdraw = v.findViewById(R.id.btn_withdraw);
         Button btnHistory = v.findViewById(R.id.btn_withdraw_history);
-        Button btnLogout = v.findViewById(R.id.btn_logout); 
+        Button btnLogout = v.findViewById(R.id.btn_logout);
 
         // ✅ NEW SUPPORT BUTTONS
         Button btnSupportWa = v.findViewById(R.id.btn_support_wa);
@@ -88,7 +89,7 @@ public class ProfileFragment extends Fragment {
         // Get User Info
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
         mobileNumber = prefs.getString("mobile", "");
-        userIdUUID = prefs.getString("userId", ""); 
+        userIdUUID = prefs.getString("userId", "");
 
         tvMobile.setText(mobileNumber);
 
@@ -122,13 +123,24 @@ public class ProfileFragment extends Fragment {
     }
 
     // ==========================================
+    // HELPER METHOD: GET JWT TOKEN
+    // ==========================================
+    private String getAuthHeader() {
+        SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
+        String token = authPrefs.getString("jwt", null);
+        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+    }
+
+    // ==========================================
     // 1. SUPPORT LOGIC (NEW)
     // ==========================================
     private void fetchAndOpenLink(String configKey) {
-        // Show loading toast
         Toast.makeText(getContext(), "Opening...", Toast.LENGTH_SHORT).show();
 
-        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + configKey)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq." + configKey)
             .enqueue(new Callback<List<AppConfigModel>>() {
                 @Override
                 public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
@@ -177,10 +189,12 @@ public class ProfileFragment extends Fragment {
     private void performLogout() {
         if (getActivity() == null) return;
 
-        SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.clear(); 
-        editor.apply();
+        // Clear both shared preferences
+        SharedPreferences userPrefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
+        SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", 0);
+        
+        userPrefs.edit().clear().apply();
+        authPrefs.edit().clear().apply();
 
         Intent intent = new Intent(getActivity(), LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -194,7 +208,10 @@ public class ProfileFragment extends Fragment {
     private void fetchUserData() {
         if (mobileNumber.isEmpty()) return;
 
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -213,7 +230,13 @@ public class ProfileFragment extends Fragment {
                                 layoutSavedBankView.setVisibility(View.VISIBLE);
                                 tvBankName.setText(String.valueOf(map.get("bank_name")));
                                 tvBankAc.setText("AC: " + map.get("account_no"));
+                            } else {
+                                layoutSavedBankView.setVisibility(View.GONE);
+                                hasBankDetails = false;
                             }
+                        } else {
+                            layoutSavedBankView.setVisibility(View.GONE);
+                            hasBankDetails = false;
                         }
                     }
                 }
@@ -257,7 +280,10 @@ public class ProfileFragment extends Fragment {
         Map<String, Object> updateBody = new HashMap<>();
         updateBody.put("bank_details", bankDetails);
 
-        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, updateBody)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, updateBody)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
@@ -311,7 +337,7 @@ public class ProfileFragment extends Fragment {
                 btnConfirm.setEnabled(true);
                 btnConfirm.setText("Withdraw ₹" + amount);
                 btnConfirm.setBackgroundResource(R.drawable.bg_gold_3d);
-                btnConfirm.setTextColor(Color.parseColor("#5D4037")); 
+                btnConfirm.setTextColor(Color.parseColor("#5D4037"));
 
                 for (int i = 0; i < gridLayout.getChildCount(); i++) {
                     View child = gridLayout.getChildAt(i);
@@ -357,12 +383,15 @@ public class ProfileFragment extends Fragment {
         Map<String, Object> req = new HashMap<>();
         req.put("user_id", userIdUUID);
         req.put("amount", amount);
-        req.put("status", "PENDING"); 
-        req.put("upi_id", paymentInfo); 
+        req.put("status", "PENDING");
+        req.put("upi_id", paymentInfo);
 
         Toast.makeText(getContext(), "Processing...", Toast.LENGTH_SHORT).show();
 
-        supabaseApi.requestWithdrawal(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, req)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.requestWithdrawal(SUPABASE_KEY, authHeader, req)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
@@ -372,7 +401,8 @@ public class ProfileFragment extends Fragment {
                         showSuccessPopup();
                     } else {
                         try {
-                            String errorBody = response.errorBody().string();
+                            String errorBody = response.errorBody() != null ? 
+                                response.errorBody().string() : "Unknown error";
                             Toast.makeText(getContext(), "Failed: " + errorBody, Toast.LENGTH_LONG).show();
                         } catch (Exception e) {
                             Toast.makeText(getContext(), "Request Failed", Toast.LENGTH_SHORT).show();
@@ -392,10 +422,17 @@ public class ProfileFragment extends Fragment {
         Map<String, Object> update = new HashMap<>();
         update.put("balance", newBalance);
 
-        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, update)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, update)
             .enqueue(new Callback<Void>() {
-                @Override public void onResponse(Call<Void> c, Response<Void> r) { fetchUserData(); }
-                @Override public void onFailure(Call<Void> c, Throwable t) {}
+                @Override 
+                public void onResponse(Call<Void> c, Response<Void> r) { 
+                    fetchUserData(); 
+                }
+                @Override 
+                public void onFailure(Call<Void> c, Throwable t) {}
             });
     }
 

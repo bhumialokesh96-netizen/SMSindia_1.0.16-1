@@ -1,5 +1,6 @@
 package com.smsindia.app.ui;
 
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -48,7 +49,7 @@ public class ShareFragment extends Fragment {
     // User Stats
     private long userSmsCount = 0;
     private long userReferralCount = 0;
-    private long currentCoins = 0; // Needed to increment locally
+    private long currentCoins = 0;
     private Map<String, Boolean> claimedMilestones = new HashMap<>();
     
     // Adapter
@@ -79,7 +80,7 @@ public class ShareFragment extends Fragment {
         
         tvCode.setText(mobileNumber);
 
-        setupMilestoneList(); // Define rewards
+        setupMilestoneList();
         
         // --- SHARE LINK ---
         btnShare.setOnClickListener(view -> shareReferralLink());
@@ -90,7 +91,16 @@ public class ShareFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        fetchUserData(); // Refresh stats when user returns
+        fetchUserData();
+    }
+
+    // ==========================================
+    // HELPER METHOD: GET JWT TOKEN
+    // ==========================================
+    private String getAuthHeader() {
+        SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
+        String token = authPrefs.getString("jwt", null);
+        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
     }
 
     private void shareReferralLink() {
@@ -109,7 +119,6 @@ public class ShareFragment extends Fragment {
 
     private void setupMilestoneList() {
         milestoneList = new ArrayList<>();
-        // Define Rules: Type (0=SMS, 1=Referral), Target, RewardCoins, ID
         milestoneList.add(new Milestone("ms_sms_20", "Send first 20 SMS", 20, 1, 0));
         milestoneList.add(new Milestone("ms_sms_100", "Send first 100 SMS", 100, 1, 0));
         milestoneList.add(new Milestone("ms_ref_1", "Invite 1st Friend", 1, 2, 1));
@@ -124,7 +133,10 @@ public class ShareFragment extends Fragment {
     private void fetchUserData() {
         if (mobileNumber.isEmpty()) return;
 
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -136,8 +148,6 @@ public class ShareFragment extends Fragment {
                         userReferralCount = user.referralCount;
                         currentCoins = user.getCoins();
                         
-                        // NOTE: 'referral_earnings' needs to be added to UserModel if you want it displayed
-                        // For now we default to 0.0 or need to update UserModel
                         tvEarnings.setText("₹0.0"); 
                         tvTotalRefs.setText(String.valueOf(userReferralCount));
                         tvCoins.setText(String.valueOf(currentCoins));
@@ -173,12 +183,13 @@ public class ShareFragment extends Fragment {
         Map<String, Object> updateData = new HashMap<>();
         updateData.put("coins", currentCoins + m.reward);
         
-        // We must re-send the whole map + new item because PATCH merges top-level fields, not nested JSON keys
-        // (This is a simplified approach; ideally use an RPC function or careful JSON merge)
         Map<String, Boolean> newMap = new HashMap<>(claimedMilestones);
         updateData.put("claimed_milestones", newMap);
 
-        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, updateData)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, updateData)
                 .enqueue(new Callback<Void>() {
                     @Override
                     public void onResponse(Call<Void> call, Response<Void> response) {
@@ -255,7 +266,7 @@ public class ShareFragment extends Fragment {
                 holder.tvProgress.setVisibility(View.VISIBLE);
                 
                 holder.tvProgress.setText("CLAIMED");
-                holder.tvProgress.setTextColor(Color.parseColor("#4CAF50")); // Green Text
+                holder.tvProgress.setTextColor(Color.parseColor("#4CAF50"));
                 holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); 
                 
             } else if (isCompleted) {
@@ -272,7 +283,7 @@ public class ShareFragment extends Fragment {
                 holder.tvProgress.setVisibility(View.VISIBLE);
                 
                 holder.tvProgress.setText(current + " / " + m.target);
-                holder.tvProgress.setTextColor(Color.parseColor("#FFC107")); // Gold Text
+                holder.tvProgress.setTextColor(Color.parseColor("#FFC107"));
                 holder.tvProgress.setBackgroundResource(R.drawable.bg_orange_border); 
             }
         }

@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -39,7 +40,7 @@ public class SpinFragment extends Fragment {
     private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
     private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
-    private LuckyWheelView wheelView; // Ensure this class exists in your project
+    private LuckyWheelView wheelView;
     private Button btnSpin;
     private TextView tvTokens;
     
@@ -89,10 +90,22 @@ public class SpinFragment extends Fragment {
         fetchUserData();
     }
 
+    // ==========================================
+    // HELPER METHOD: GET JWT TOKEN
+    // ==========================================
+    private String getAuthHeader() {
+        SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
+        String token = authPrefs.getString("jwt", null);
+        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+    }
+
     private void fetchUserData() {
         if(mobileNumber.isEmpty()) return;
         
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -127,19 +140,19 @@ public class SpinFragment extends Fragment {
 
         // --- PROBABILITY LOGIC ---
         int targetIndex;
-        int rand = new Random().nextInt(100); 
+        int rand = new Random().nextInt(100);
 
         // 96% chance to get index 0 (0.6) or 5 (0.6)
         if (rand < 96) {
-            targetIndex = (new Random().nextBoolean()) ? 0 : 5; 
+            targetIndex = (new Random().nextBoolean()) ? 0 : 5;
         } else {
              int[] others = {1, 2, 3, 4};
              targetIndex = others[new Random().nextInt(others.length)];
         }
         
         float sectorAngle = 360f / 6f;
-        float finalAngle = (360 - (targetIndex * sectorAngle)) + (360 * 10); 
-        finalAngle -= (sectorAngle / 2); 
+        float finalAngle = (360 - (targetIndex * sectorAngle)) + (360 * 10);
+        finalAngle -= (sectorAngle / 2);
 
         ObjectAnimator animator = ObjectAnimator.ofFloat(wheelView, "rotation", 0f, finalAngle);
         animator.setDuration(4000);
@@ -179,7 +192,10 @@ public class SpinFragment extends Fragment {
         Map<String, Object> body = new HashMap<>();
         body.put(fieldName, value);
 
-        supabaseApi.updateUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber, body)
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+
+        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, body)
             .enqueue(new Callback<Void>() {
                 @Override public void onResponse(Call<Void> c, Response<Void> r) {}
                 @Override public void onFailure(Call<Void> c, Throwable t) {}

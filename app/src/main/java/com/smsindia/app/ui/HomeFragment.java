@@ -24,7 +24,6 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
-// AdMob Imports
 import com.google.android.gms.ads.AdRequest;
 import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
@@ -33,7 +32,6 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
 import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
-// ✅ REMOVED THE IMPORT FOR BannerAdapter BECAUSE IT IS IN THE SAME FOLDER NOW
 import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
@@ -147,9 +145,22 @@ public class HomeFragment extends Fragment {
         sliderHandler.removeCallbacks(sliderRunnable);
     }
 
+    // ==========================================
+    // HELPER METHOD: GET JWT TOKEN
+    // ==========================================
+    private String getAuthHeader() {
+        SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
+        String token = authPrefs.getString("jwt", null);
+        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+    }
+
     private void fetchUserBalance() {
         if(mobileNumber.isEmpty()) return;
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber)
+        
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -171,7 +182,6 @@ public class HomeFragment extends Fragment {
         banners.add(R.drawable.banner2);
         banners.add(R.drawable.banner3);
 
-        // ✅ Correctly calls BannerAdapter from the SAME package
         bannerViewPager.setAdapter(new BannerAdapter(getContext(), banners));
 
         bannerViewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
@@ -200,7 +210,10 @@ public class HomeFragment extends Fragment {
             btnGetCode.setText("Connecting...");
             btnGetCode.setEnabled(false);
 
-            supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.whatsapp_config")
+            // Use JWT token for authorization
+            String authHeader = getAuthHeader();
+
+            supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq.whatsapp_config")
                 .enqueue(new Callback<List<AppConfigModel>>() {
                     @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                         String url = ""; boolean active = false;
@@ -256,17 +269,28 @@ public class HomeFragment extends Fragment {
     private void showDailyCheckInDialog() {
         if(userIdUUID.isEmpty()) return;
         Map<String, Object> body = new HashMap<>(); body.put("p_user_id", userIdUUID);
-        supabaseApi.claimDailyCheckin(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body).enqueue(new Callback<Void>() {
+        
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.claimDailyCheckin(SUPABASE_KEY, authHeader, body).enqueue(new Callback<Void>() {
             @Override public void onResponse(Call<Void> c, Response<Void> r) {
-                if(r.isSuccessful()) { Toast.makeText(getContext(), "✅ Success!", Toast.LENGTH_LONG).show(); fetchUserBalance(); }
-                else Toast.makeText(getContext(), "Already Claimed!", Toast.LENGTH_SHORT).show();
+                if(r.isSuccessful()) { 
+                    Toast.makeText(getContext(), "✅ Success!", Toast.LENGTH_LONG).show(); 
+                    fetchUserBalance(); 
+                } else {
+                    Toast.makeText(getContext(), "Already Claimed!", Toast.LENGTH_SHORT).show();
+                }
             }
             @Override public void onFailure(Call<Void> c, Throwable t) {}
         });
     }
 
     private void openEarnMoreWebTask() {
-        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.earn_more_config").enqueue(new Callback<List<AppConfigModel>>() {
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq.earn_more_config").enqueue(new Callback<List<AppConfigModel>>() {
             @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                 if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
                     String url = (String)((LinkedTreeMap)r.body().get(0).value).get("url");
@@ -283,12 +307,20 @@ public class HomeFragment extends Fragment {
     }
 
     private void fetchAdConfiguration() {
-        supabaseApi.getConfig(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq.admob_config").enqueue(new Callback<List<AppConfigModel>>() {
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq.admob_config").enqueue(new Callback<List<AppConfigModel>>() {
             @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                 try {
                     if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
                         List<String> ids = (List<String>)((LinkedTreeMap)r.body().get(0).value).get("rewarded_ids");
-                        if(ids != null && !ids.isEmpty()) { adUnitList.clear(); adUnitList.addAll(ids); loadAd(); return; }
+                        if(ids != null && !ids.isEmpty()) { 
+                            adUnitList.clear(); 
+                            adUnitList.addAll(ids); 
+                            loadAd(); 
+                            return; 
+                        }
                     }
                 } catch(Exception e) {}
                 useFallbackAds();
@@ -323,7 +355,11 @@ public class HomeFragment extends Fragment {
     private void updateAdProgress() {
         if(userIdUUID.isEmpty()) return;
         Map<String, Object> body = new HashMap<>(); body.put("p_user_id", userIdUUID);
-        supabaseApi.watchAdReward(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
+        
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.watchAdReward(SUPABASE_KEY, authHeader, body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
             @Override public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
                 if(r.isSuccessful() && r.body() != null) {
                     int p = ((Double)r.body().get("progress")).intValue();
@@ -337,7 +373,10 @@ public class HomeFragment extends Fragment {
     }
     
     private void fetchAdProgress() {
-        supabaseApi.getUser(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
+        // Use JWT token for authorization
+        String authHeader = getAuthHeader();
+        
+        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
             @Override public void onResponse(Call<List<UserModel>> c, Response<List<UserModel>> r) {
                 if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
                     int p = r.body().get(0).adProgress;
