@@ -112,6 +112,19 @@
                         android:maxLines="1"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
+                <!-- FORGOT PASSWORD BUTTON (ADD THIS) -->
+                <TextView
+                    android:id="@+id/forgotPasswordBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Forgot Password?"
+                    android:textColor="#2196F3"
+                    android:textSize="14sp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="16dp"
+                    android:layout_gravity="end"
+                    android:padding="4dp"/>
+
                 <!-- REFERRAL CODE -->
                 <com.google.android.material.textfield.TextInputLayout
                     android:layout_width="match_parent"

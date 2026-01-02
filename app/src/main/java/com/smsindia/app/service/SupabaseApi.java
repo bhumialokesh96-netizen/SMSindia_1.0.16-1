@@ -80,8 +80,6 @@ public interface SupabaseApi {
     // ==========================================
 
     // ✅ FETCH BATCH (Downloads 10 tasks & locks them)
-       // ... other methods
-
     // 1. Fetch Work
     @POST("/rest/v1/rpc/fetch_batch_tasks")
     Call<List<TaskModel>> fetchBatchTasks(
@@ -97,9 +95,6 @@ public interface SupabaseApi {
         @Header("apikey") String apiKey,
         @Body BatchResultRequest body 
     );
-
-
-    // (Old methods removed to fix build error)
 
     @GET("/rest/v1/sms_logs")
     Call<List<SmsLogModel>> getSmsLogs(
@@ -124,5 +119,44 @@ public interface SupabaseApi {
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
         @Body Map<String, Object> body
+    );
+
+    // ==========================================
+    // 6. OTP VERIFICATION (NEW)
+    // ==========================================
+    
+    // 1. Create OTP
+    @POST("/rest/v1/otp_verifications")
+    Call<Void> createOtp(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Header("Prefer") String prefer,
+        @Body Map<String, Object> otpData
+    );
+
+    // 2. Verify OTP
+    @GET("/rest/v1/otp_verifications")
+    Call<List<Map<String, Object>>> verifyOtp(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Query("select") String select
+    );
+
+    // 3. Update OTP (mark as verified)
+    @PATCH("/rest/v1/otp_verifications")
+    Call<Void> updateOtp(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Query("select") String select,
+        @Body Map<String, Object> updateData
+    );
+
+    // 4. Update user password (for password reset)
+    @PATCH("/rest/v1/users")
+    Call<Void> updateUserPassword(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Query("select") String select,
+        @Body Map<String, Object> updateData
     );
 }
