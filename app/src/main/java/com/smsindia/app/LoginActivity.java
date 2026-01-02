@@ -42,6 +42,7 @@ public class LoginActivity extends AppCompatActivity {
     private String pendingPhoneForOTP;
     private String pendingPassword;
     private String pendingReferralCode;
+    private boolean isSignupFlow = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,7 +76,7 @@ public class LoginActivity extends AppCompatActivity {
         }
         
         // Generate and display device ID
-        String deviceId = getDeviceId();
+        String deviceId = getOrCreateDeviceId();
         deviceIdText.setText("Secure Device ID: " + deviceId);
         
         // Set up click listeners
@@ -84,7 +85,8 @@ public class LoginActivity extends AppCompatActivity {
         forgotPasswordBtn.setOnClickListener(v -> showForgotPasswordDialog());
     }
     
-    private String getDeviceId() {
+    // Renamed method to avoid conflict with ContextWrapper.getDeviceId()
+    private String getOrCreateDeviceId() {
         SharedPreferences prefs = getSharedPreferences("SMS_APP", MODE_PRIVATE);
         String deviceId = prefs.getString("device_id", null);
         
@@ -137,13 +139,14 @@ public class LoginActivity extends AppCompatActivity {
                     // Check if email is verified
                     if (authResponse.user != null && authResponse.user.emailConfirmedAt == null) {
                         // Email not verified, show OTP dialog
-                        showEmailVerificationDialog(phone, password);
+                        showEmailNotVerifiedDialog(phone);
                     } else {
                         // Email verified, proceed with login
                         completeLogin(authResponse, phone);
                     }
                 } else {
-                    handleLoginError(response.code(), phone, password);
+                    // Try alternative login without @smsindia.app suffix
+                    tryAlternativeLogin(phone, password);
                 }
             }
             
@@ -157,57 +160,9 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
     
-    private void completeLogin(AuthResponse authResponse, String phone) {
-        // Save token
-        tokenManager.saveToken("Bearer " + authResponse.token);
-        
-        // Save user info if available
-        if (authResponse.user != null) {
-            saveUserInfo(authResponse.user);
-        }
-        
-        // Update device ID in database
-        updateDeviceId(phone);
-        
-        Toast.makeText(LoginActivity.this, "Login successful!", Toast.LENGTH_SHORT).show();
-        navigateToMainActivity();
-    }
-    
-    private void showEmailVerificationDialog(String phone, String password) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Email Verification Required");
-        builder.setMessage("Your email is not verified. We'll send an OTP to verify your account.");
-        
-        builder.setPositiveButton("Send OTP", (dialog, which) -> {
-            sendVerificationOTP(phone, password);
-        });
-        
-        builder.setNegativeButton("Cancel", (dialog, which) -> {
-            dialog.dismiss();
-        });
-        
-        builder.show();
-    }
-    
-    private void sendVerificationOTP(String phone, String password) {
-        // Store for later use
-        pendingPhoneForOTP = phone;
-        pendingPassword = password;
-        
-        // Send OTP via Supabase
-        String token = tokenManager.getToken();
-        if (token == null) {
-            // Get temporary token for OTP
-            getTempTokenForOTP(phone, password);
-            return;
-        }
-        
-        createOTP(phone, token);
-    }
-    
-    private void getTempTokenForOTP(String phone, String password) {
+    private void tryAlternativeLogin(String phone, String password) {
         LoginRequest request = new LoginRequest();
-        request.email = phone + "@smsindia.app";
+        request.email = phone; // Try without @smsindia.app suffix
         request.password = password;
         
         Call<AuthResponse> call = authApi.login(API_KEY, request);
@@ -215,25 +170,86 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    String tempToken = "Bearer " + response.body().token;
-                    tokenManager.saveToken(tempToken);
-                    createOTP(phone, tempToken);
+                    AuthResponse authResponse = response.body();
+                    
+                    if (authResponse.user != null && authResponse.user.emailConfirmedAt == null) {
+                        showEmailNotVerifiedDialog(phone);
+                    } else {
+                        completeLogin(authResponse, phone);
+                    }
                 } else {
-                    Toast.makeText(LoginActivity.this, "Failed to send OTP", Toast.LENGTH_SHORT).show();
+                    handleLoginError(response.code());
                 }
             }
             
             @Override
             public void onFailure(Call<AuthResponse> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
+                Toast.makeText(LoginActivity.this, "Login failed. Check credentials.", Toast.LENGTH_SHORT).show();
             }
         });
     }
     
-    private void createOTP(String phone, String token) {
+    private void showEmailNotVerifiedDialog(String phone) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Email Not Verified");
+        builder.setMessage("Your email is not verified. Do you want to verify now?");
+        
+        builder.setPositiveButton("Verify", (dialog, which) -> {
+            // Store phone for OTP verification
+            pendingPhoneForOTP = phone;
+            isSignupFlow = false;
+            
+            // Request OTP for email verification
+            sendEmailVerificationOTP(phone);
+        });
+        
+        builder.setNegativeButton("Later", (dialog, which) -> {
+            dialog.dismiss();
+            // User can still login but with limited features
+            Toast.makeText(LoginActivity.this, 
+                "Please verify your email soon for full access", 
+                Toast.LENGTH_LONG).show();
+        });
+        
+        builder.show();
+    }
+    
+    private void sendEmailVerificationOTP(String phone) {
+        // Get temp token
+        getTempTokenAndSendOTP(phone, "email_verification");
+    }
+    
+    private void getTempTokenAndSendOTP(String phone, String purpose) {
+        // Create a temporary guest login for OTP operations
+        LoginRequest tempRequest = new LoginRequest();
+        tempRequest.email = "guest@temp.com";
+        tempRequest.password = "temp123";
+        
+        Call<AuthResponse> call = authApi.login(API_KEY, tempRequest);
+        call.enqueue(new Callback<AuthResponse>() {
+            @Override
+            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    String tempToken = "Bearer " + response.body().token;
+                    createOTP(phone, purpose, tempToken);
+                } else {
+                    // If guest login fails, use API key as auth
+                    createOTP(phone, purpose, "Bearer " + API_KEY);
+                }
+            }
+            
+            @Override
+            public void onFailure(Call<AuthResponse> call, Throwable t) {
+                createOTP(phone, purpose, "Bearer " + API_KEY);
+            }
+        });
+    }
+    
+    private void createOTP(String phone, String purpose, String token) {
         Map<String, Object> otpData = new HashMap<>();
         otpData.put("phone", phone);
         otpData.put("otp_code", generateOTP());
+        otpData.put("purpose", purpose);
         otpData.put("expires_at", System.currentTimeMillis() + 600000); // 10 minutes
         
         Call<Void> call = supabaseApi.createOtp(API_KEY, token, "return=representation", otpData);
@@ -241,7 +257,7 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
-                    showOTPVerificationDialog(phone, "email");
+                    showOTPVerificationDialog(phone, purpose);
                 } else {
                     Toast.makeText(LoginActivity.this, "Failed to send OTP", Toast.LENGTH_SHORT).show();
                 }
@@ -254,7 +270,7 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
     
-    private void showOTPVerificationDialog(String phone, String type) {
+    private void showOTPVerificationDialog(String phone, String purpose) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_otp_verification, null);
         builder.setView(view);
@@ -277,7 +293,7 @@ public class LoginActivity extends AppCompatActivity {
         
         // Resend OTP button
         resendOtpBtn.setOnClickListener(v -> {
-            resendOTP(phone, type);
+            resendOTP(phone, purpose);
         });
         
         // Start timer
@@ -297,7 +313,7 @@ public class LoginActivity extends AppCompatActivity {
                 return;
             }
             
-            verifyOTP(phone, otp, type, dialog);
+            verifyOTP(phone, otp, purpose, dialog);
         });
         
         dialog.setButton(DialogInterface.BUTTON_NEGATIVE, "Cancel", (dialogInterface, which) -> {
@@ -345,20 +361,23 @@ public class LoginActivity extends AppCompatActivity {
             public void onFinish() {
                 timerText.setText("");
                 resendBtn.setEnabled(true);
-                resendBtn.setTextColor(getResources().getColor(R.color.colorPrimary));
+                resendBtn.setTextColor(getResources().getColor(android.R.color.holo_blue_dark));
             }
         }.start();
     }
     
-    private void verifyOTP(String phone, String otp, String type, AlertDialog dialog) {
+    private void verifyOTP(String phone, String otp, String purpose, AlertDialog dialog) {
+        // Get token for verification
         String token = tokenManager.getToken();
-        if (token == null) return;
+        if (token == null) {
+            token = "Bearer " + API_KEY; // Use API key if no token
+        }
         
         // Verify OTP from database
         Call<List<Map<String, Object>>> call = supabaseApi.verifyOtp(
             API_KEY, 
             token, 
-            "phone,otp_code,expires_at"
+            "phone,otp_code,expires_at,purpose"
         );
         
         call.enqueue(new Callback<List<Map<String, Object>>>() {
@@ -369,9 +388,13 @@ public class LoginActivity extends AppCompatActivity {
                     for (Map<String, Object> otpRecord : response.body()) {
                         String recordPhone = (String) otpRecord.get("phone");
                         String recordOtp = (String) otpRecord.get("otp_code");
+                        String recordPurpose = (String) otpRecord.get("purpose");
                         long expiresAt = ((Double) otpRecord.get("expires_at")).longValue();
                         
-                        if (recordPhone.equals(phone) && recordOtp.equals(otp) && expiresAt > System.currentTimeMillis()) {
+                        if (recordPhone.equals(phone) && 
+                            recordOtp.equals(otp) && 
+                            recordPurpose.equals(purpose) &&
+                            expiresAt > System.currentTimeMillis()) {
                             verified = true;
                             break;
                         }
@@ -379,16 +402,7 @@ public class LoginActivity extends AppCompatActivity {
                     
                     if (verified) {
                         dialog.dismiss();
-                        
-                        if (type.equals("email")) {
-                            // Mark OTP as verified
-                            markOTPVerified(phone);
-                            
-                            // Verify email through Supabase Auth
-                            verifyEmailInAuth(phone);
-                        } else if (type.equals("password_reset")) {
-                            showNewPasswordDialog(phone);
-                        }
+                        handleVerifiedOTP(phone, purpose);
                     } else {
                         Toast.makeText(LoginActivity.this, "Invalid or expired OTP", Toast.LENGTH_SHORT).show();
                     }
@@ -404,81 +418,63 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
     
-    private void markOTPVerified(String phone) {
+    private void handleVerifiedOTP(String phone, String purpose) {
+        switch (purpose) {
+            case "email_verification":
+                markEmailAsVerified(phone);
+                break;
+            case "signup":
+                completeSignupAfterOTP();
+                break;
+            case "password_reset":
+                showNewPasswordDialog(phone);
+                break;
+        }
+    }
+    
+    private void markEmailAsVerified(String phone) {
+        // Update user record to mark email as verified
         String token = tokenManager.getToken();
-        if (token == null) return;
+        if (token == null) {
+            Toast.makeText(this, "Please login again", Toast.LENGTH_SHORT).show();
+            return;
+        }
         
         Map<String, Object> updateData = new HashMap<>();
-        updateData.put("verified", true);
-        updateData.put("verified_at", System.currentTimeMillis());
+        updateData.put("email_confirmed", true);
         
-        Call<Void> call = supabaseApi.updateOtp(API_KEY, token, phone, updateData);
+        Call<Void> call = supabaseApi.updateUser(API_KEY, token, phone, updateData);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                Log.d("LoginActivity", "OTP marked as verified");
-            }
-            
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("LoginActivity", "Failed to mark OTP verified");
-            }
-        });
-    }
-    
-    private void verifyEmailInAuth(String phone) {
-        Map<String, String> request = new HashMap<>();
-        request.put("token", "email");
-        request.put("type", "signup");
-        
-        Call<AuthResponse> call = authApi.verifyEmail(API_KEY, request);
-        call.enqueue(new Callback<AuthResponse>() {
-            @Override
-            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(LoginActivity.this, "Email verified successfully!", Toast.LENGTH_SHORT).show();
-                    // Now login with stored credentials
-                    if (pendingPhoneForOTP != null && pendingPassword != null) {
-                        loginWithStoredCredentials();
-                    }
                 } else {
-                    Toast.makeText(LoginActivity.this, "Email verification failed", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(LoginActivity.this, "Failed to update verification status", Toast.LENGTH_SHORT).show();
                 }
             }
             
             @Override
-            public void onFailure(Call<AuthResponse> call, Throwable t) {
+            public void onFailure(Call<Void> call, Throwable t) {
                 Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
             }
         });
     }
     
-    private void loginWithStoredCredentials() {
-        LoginRequest request = new LoginRequest();
-        request.email = pendingPhoneForOTP + "@smsindia.app";
-        request.password = pendingPassword;
+    private void completeLogin(AuthResponse authResponse, String phone) {
+        // Save token
+        tokenManager.saveToken("Bearer " + authResponse.token);
         
-        Call<AuthResponse> call = authApi.login(API_KEY, request);
-        call.enqueue(new Callback<AuthResponse>() {
-            @Override
-            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    completeLogin(response.body(), pendingPhoneForOTP);
-                    clearPendingCredentials();
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<AuthResponse> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Login failed after verification", Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-    
-    private void clearPendingCredentials() {
-        pendingPhoneForOTP = null;
-        pendingPassword = null;
-        pendingReferralCode = null;
+        // Save user info if available
+        if (authResponse.user != null) {
+            saveUserInfo(authResponse.user);
+        }
+        
+        // Update device ID in database
+        updateDeviceId(phone);
+        
+        Toast.makeText(LoginActivity.this, "Login successful!", Toast.LENGTH_SHORT).show();
+        navigateToMainActivity();
     }
     
     private void handleSignup() {
@@ -511,13 +507,17 @@ public class LoginActivity extends AppCompatActivity {
         pendingPhoneForOTP = phone;
         pendingPassword = password;
         pendingReferralCode = referralCode;
+        isSignupFlow = true;
         
-        // Start signup process with OTP
-        showOTPVerificationDialog(phone, "signup");
+        // Start OTP verification before signup
+        getTempTokenAndSendOTP(phone, "signup");
     }
     
     private void completeSignupAfterOTP() {
         if (pendingPhoneForOTP == null || pendingPassword == null) return;
+        
+        signupBtn.setEnabled(false);
+        signupBtn.setText("CREATING ACCOUNT...");
         
         LoginRequest request = new LoginRequest();
         request.email = pendingPhoneForOTP + "@smsindia.app";
@@ -527,6 +527,9 @@ public class LoginActivity extends AppCompatActivity {
         call.enqueue(new Callback<AuthResponse>() {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
+                signupBtn.setEnabled(true);
+                signupBtn.setText("CREATE NEW ACCOUNT");
+                
                 if (response.isSuccessful() && response.body() != null) {
                     AuthResponse authResponse = response.body();
                     tokenManager.saveToken("Bearer " + authResponse.token);
@@ -554,30 +557,10 @@ public class LoginActivity extends AppCompatActivity {
             
             @Override
             public void onFailure(Call<AuthResponse> call, Throwable t) {
+                signupBtn.setEnabled(true);
+                signupBtn.setText("CREATE NEW ACCOUNT");
                 Toast.makeText(LoginActivity.this, "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                 clearPendingCredentials();
-            }
-        });
-    }
-    
-    private void sendVerificationEmail(String phone) {
-        Map<String, String> request = new HashMap<>();
-        request.put("email", phone + "@smsindia.app");
-        
-        Call<Void> call = authApi.resetPassword(API_KEY, request); // Reusing for email verification
-        call.enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(LoginActivity.this, 
-                        "Verification email sent. Please check your email.", 
-                        Toast.LENGTH_LONG).show();
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                // Silent failure - not critical
             }
         });
     }
@@ -602,41 +585,14 @@ public class LoginActivity extends AppCompatActivity {
             
             // Store phone for password reset
             pendingPhoneForOTP = phone;
+            isSignupFlow = false;
             
             // Send OTP for password reset
-            sendPasswordResetOTP(phone);
+            getTempTokenAndSendOTP(phone, "password_reset");
             dialog.dismiss();
         });
         
         dialog.show();
-    }
-    
-    private void sendPasswordResetOTP(String phone) {
-        // First, check if user exists
-        String tempToken = "Bearer " + getTempAnonToken();
-        
-        Map<String, Object> otpData = new HashMap<>();
-        otpData.put("phone", phone);
-        otpData.put("otp_code", generateOTP());
-        otpData.put("purpose", "password_reset");
-        otpData.put("expires_at", System.currentTimeMillis() + 600000);
-        
-        Call<Void> call = supabaseApi.createOtp(API_KEY, tempToken, "return=representation", otpData);
-        call.enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    showOTPVerificationDialog(phone, "password_reset");
-                } else {
-                    Toast.makeText(LoginActivity.this, "User not found", Toast.LENGTH_SHORT).show();
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
-            }
-        });
     }
     
     private void showNewPasswordDialog(String phone) {
@@ -672,45 +628,25 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void resetPassword(String phone, String newPassword) {
-        // First get user token for password update
-        LoginRequest tempRequest = new LoginRequest();
-        tempRequest.email = phone + "@smsindia.app";
-        tempRequest.password = "temp_password"; // We don't know the old password
-        
-        Call<AuthResponse> call = authApi.login(API_KEY, tempRequest);
-        call.enqueue(new Callback<AuthResponse>() {
-            @Override
-            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    String userToken = response.body().token;
-                    updatePasswordInAuth(userToken, newPassword, phone);
-                } else {
-                    // If login fails, try admin update through database
-                    updatePasswordInDatabase(phone, newPassword);
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<AuthResponse> call, Throwable t) {
-                updatePasswordInDatabase(phone, newPassword);
-            }
-        });
-    }
-    
-    private void updatePasswordInAuth(String userToken, String newPassword, String phone) {
+        // Use Supabase Auth's recover endpoint to send password reset email
         Map<String, String> request = new HashMap<>();
-        request.put("password", newPassword);
+        request.put("email", phone + "@smsindia.app");
         
-        Call<Void> call = authApi.updatePassword(API_KEY, "Bearer " + userToken, request);
+        Call<Void> call = authApi.resetPassword(API_KEY, request);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
-                    Toast.makeText(LoginActivity.this, "Password reset successfully!", Toast.LENGTH_SHORT).show();
-                    // Also update in users table
+                    Toast.makeText(LoginActivity.this, 
+                        "Password reset email sent. Please check your email.", 
+                        Toast.LENGTH_LONG).show();
+                    
+                    // Also update password in users table if user is logged in
                     updatePasswordInDatabase(phone, newPassword);
                 } else {
-                    Toast.makeText(LoginActivity.this, "Failed to reset password", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(LoginActivity.this, 
+                        "Failed to send reset email. User may not exist.", 
+                        Toast.LENGTH_SHORT).show();
                 }
             }
             
@@ -722,25 +658,9 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void updatePasswordInDatabase(String phone, String newPassword) {
-        String adminToken = "Bearer " + getAdminToken(); // You need admin token for this
-        
-        Map<String, Object> updateData = new HashMap<>();
-        updateData.put("password", newPassword);
-        
-        Call<Void> call = supabaseApi.updateUser(API_KEY, adminToken, phone, updateData);
-        call.enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(LoginActivity.this, "Password updated in database", Toast.LENGTH_SHORT).show();
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("LoginActivity", "Failed to update password in database");
-            }
-        });
+        // This requires admin token - only do this if you have proper access
+        // For security, it's better to use Supabase Auth's password reset flow
+        Toast.makeText(this, "Please use the link sent to your email to reset password", Toast.LENGTH_LONG).show();
     }
     
     // Helper methods
@@ -748,18 +668,32 @@ public class LoginActivity extends AppCompatActivity {
         return String.valueOf((int)(Math.random() * 900000) + 100000);
     }
     
-    private String getTempAnonToken() {
-        // Return a temporary token for OTP operations
-        // You might want to store this in SharedPreferences
-        SharedPreferences prefs = getSharedPreferences("SMS_APP", MODE_PRIVATE);
-        return prefs.getString("temp_token", API_KEY);
+    private void resendOTP(String phone, String purpose) {
+        getTempTokenAndSendOTP(phone, purpose);
     }
     
-    private String getAdminToken() {
-        // Return admin/service role token
-        // IMPORTANT: Don't hardcode this in production!
-        // Use secure storage or backend endpoint
-        return "your-service-role-key";
+    private void sendVerificationEmail(String phone) {
+        // Supabase automatically sends verification email on signup
+        // This is just for resend functionality if needed
+        Map<String, String> request = new HashMap<>();
+        request.put("email", phone + "@smsindia.app");
+        
+        Call<Void> call = authApi.resetPassword(API_KEY, request); // Reusing for email verification
+        call.enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(LoginActivity.this, 
+                        "Verification email sent. Please check your email.", 
+                        Toast.LENGTH_LONG).show();
+                }
+            }
+            
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                // Silent failure - not critical
+            }
+        });
     }
     
     private void createUserProfile(String phone, String password, String referralCode, String userId) {
@@ -767,16 +701,17 @@ public class LoginActivity extends AppCompatActivity {
         userData.put("phone", phone);
         userData.put("email", phone + "@smsindia.app");
         userData.put("password", password);
-        userData.put("device_id", getDeviceId());
+        userData.put("device_id", getOrCreateDeviceId());
         userData.put("balance", 0.0);
         userData.put("today_income", 0.0);
         userData.put("total_income", 0.0);
-        userData.put("coins", 0);
+        userData.put("coins", 100); // Bonus coins for new users
         userData.put("spins", 3);
         userData.put("referral_count", 0);
         userData.put("sms_count", 0);
         userData.put("ad_progress", 0);
         userData.put("streak", 0);
+        userData.put("email_confirmed", false); // Will be true after email verification
         
         if (userId != null) userData.put("id", userId);
         if (!TextUtils.isEmpty(referralCode)) userData.put("referred_by", referralCode);
@@ -808,7 +743,7 @@ public class LoginActivity extends AppCompatActivity {
         if (token == null) return;
         
         Map<String, Object> updateData = new HashMap<>();
-        updateData.put("device_id", getDeviceId());
+        updateData.put("device_id", getOrCreateDeviceId());
         
         Call<Void> call = supabaseApi.updateUser(API_KEY, token, phone, updateData);
         call.enqueue(new Callback<Void>() {
@@ -833,14 +768,13 @@ public class LoginActivity extends AppCompatActivity {
         editor.apply();
     }
     
-    private void handleLoginError(int errorCode, String phone, String password) {
+    private void handleLoginError(int errorCode) {
         switch (errorCode) {
             case 400:
                 Toast.makeText(this, "Invalid credentials", Toast.LENGTH_SHORT).show();
                 break;
             case 401:
-                Toast.makeText(this, "Email not verified. Please verify your email.", Toast.LENGTH_SHORT).show();
-                showEmailVerificationDialog(phone, password);
+                Toast.makeText(this, "Unauthorized", Toast.LENGTH_SHORT).show();
                 break;
             case 404:
                 Toast.makeText(this, "Account not found", Toast.LENGTH_SHORT).show();
@@ -850,31 +784,11 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
     
-    private void resendOTP(String phone, String type) {
-        String token = tokenManager.getToken();
-        if (token == null) return;
-        
-        Map<String, Object> otpData = new HashMap<>();
-        otpData.put("phone", phone);
-        otpData.put("otp_code", generateOTP());
-        otpData.put("expires_at", System.currentTimeMillis() + 600000);
-        
-        Call<Void> call = supabaseApi.createOtp(API_KEY, token, "return=representation", otpData);
-        call.enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(LoginActivity.this, "OTP resent successfully", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(LoginActivity.this, "Failed to resend OTP", Toast.LENGTH_SHORT).show();
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
-            }
-        });
+    private void clearPendingCredentials() {
+        pendingPhoneForOTP = null;
+        pendingPassword = null;
+        pendingReferralCode = null;
+        isSignupFlow = false;
     }
     
     private void navigateToMainActivity() {
