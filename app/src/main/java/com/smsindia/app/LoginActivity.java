@@ -20,8 +20,10 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.smsindia.app.service.AuthApi;
-import com.smsindia.app.service.AuthModels;
+import com.smsindia.app.service.AuthResponse;
+import com.smsindia.app.service.LoginRequest;
 import com.smsindia.app.service.TokenManager;
+import com.smsindia.app.service.AuthApi;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
 
@@ -136,7 +138,7 @@ public class LoginActivity extends AppCompatActivity {
         String email = phone + "@smsindia.com";
 
         // Create login request
-        AuthModels.LoginRequest loginRequest = new AuthModels.LoginRequest();
+        LoginRequest loginRequest = new LoginRequest.LoginRequest();
         loginRequest.email = email;
         loginRequest.password = password;
 
@@ -287,7 +289,7 @@ public class LoginActivity extends AppCompatActivity {
         String newUserId = UUID.randomUUID().toString();
 
         // Step 1: Sign up in Supabase Auth
-        AuthModels.LoginRequest signupRequest = new AuthModels.LoginRequest();
+        LoginRequest.LoginRequest signupRequest = new LoginRequest.LoginRequest();
         signupRequest.email = email;
         signupRequest.password = password;
 
@@ -365,7 +367,7 @@ public class LoginActivity extends AppCompatActivity {
     private void createAuthRecordForExistingUser(String phone, String password, UserModel user) {
         String email = phone + "@smsindia.com";
         
-        AuthModels.LoginRequest signupRequest = new AuthModels.LoginRequest();
+        LoginRequest.LoginRequest signupRequest = new LoginRequest.LoginRequest();
         signupRequest.email = email;
         signupRequest.password = password;
 
