@@ -44,28 +44,51 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-        navView = findViewById(R.id.bottomNavigationView);
+        
+        try {
+            // FIRST set the layout
+            setContentView(R.layout.activity_main);
+            
+            // THEN check permissions and user data
+            checkUserAndPermissions();
+            
+        } catch (Exception e) {
+            // If ANY error occurs, redirect to login
+            e.printStackTrace();
+            redirectToLogin();
+        }
+    }
 
-        // ✅ CRITICAL FIX: Check for 'userId' (UUID), not just 'mobile'.
-        // Supabase needs the UUID for everything (Mining, Withdrawals, etc).
+    private void checkUserAndPermissions() {
+        // ✅ FIXED: More flexible user check
         SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
         String userId = prefs.getString("userId", null);
+        String mobile = prefs.getString("mobile", null);
         
-        if (userId == null || userId.isEmpty()) {
-            Toast.makeText(this, "Session expired. Please login again.", Toast.LENGTH_SHORT).show();
-            Intent intent = new Intent(this, LoginActivity.class);
-            // Clear back stack so they can't press back to return here
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(intent);
-            finish();
-            return;
+        // Debug: Show what's stored
+        android.util.Log.d("MAIN_ACTIVITY", "UserID: " + userId);
+        android.util.Log.d("MAIN_ACTIVITY", "Mobile: " + mobile);
+        
+        // Check if we have SOME user data
+        boolean hasUserData = (userId != null && !userId.isEmpty()) || 
+                              (mobile != null && !mobile.isEmpty());
+        
+        if (!hasUserData) {
+            // No user data found, redirect to login
+            Toast.makeText(this, "Please login to continue", Toast.LENGTH_SHORT).show();
+            redirectToLogin();
+            return; // IMPORTANT: Stop execution here
         }
+        
+        // If we reach here, we have user data - continue setup
+        setupUI();
+    }
+
+    private void setupUI() {
+        navView = findViewById(R.id.bottomNavigationView);
 
         // Load default fragment (Home)
-        if (savedInstanceState == null) {
-            loadFragment(new HomeFragment());
-        }
+        loadFragment(new HomeFragment());
 
         // NAVIGATION LOGIC
         navView.setOnItemSelectedListener(item -> {
@@ -91,7 +114,7 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
         
-        // Request necessary permissions on startup
+        // Request necessary permissions
         checkPermissions();
     }
 
@@ -107,9 +130,24 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadFragment(Fragment fragment) {
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.fragment_container, fragment)
-                .commitAllowingStateLoss();
+        try {
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.fragment_container, fragment)
+                    .commitAllowingStateLoss();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void redirectToLogin() {
+        try {
+            Intent intent = new Intent(this, LoginActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }
