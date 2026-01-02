@@ -2,11 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- SDK CONFIG -->
     <uses-sdk
         android:minSdkVersion="24"
         android:targetSdkVersion="35" />
 
-    <!-- PERMISSIONS -->
+    <!-- ========== PERMISSIONS ========== -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_SMS" />
@@ -19,10 +20,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- 🚨 REQUIRED FOR BACKGROUND MINING (Android 14+) -->
+    <!-- Android 14+ Foreground Service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- ========== APPLICATION ========== -->
     <application
         android:name=".MyApp"
         android:allowBackup="true"
@@ -34,19 +36,20 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.SMSIndia.NoActionBar"
         tools:targetApi="35">
-        
+
+        <!-- Google AdMob -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-9828067292234660~6786170048"/>
+            android:value="ca-app-pub-9828067292234660~6786170048" />
 
-        <!-- ✅ THE NEW MINING ENGINE (Must be registered here) -->
+        <!-- ========== SMS MINING SERVICE ========== -->
         <service
             android:name=".workers.SmsMiningService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- FIREBASE MESSAGING -->
+        <!-- Firebase Messaging -->
         <service
             android:name=".service.MyFirebaseMessagingService"
             android:exported="false">
@@ -55,7 +58,23 @@
             </intent-filter>
         </service>
 
-        <!-- ========== SPLASH ACTIVITY (LAUNCHER) ========== -->
+        <!-- ========== TEMPORARY LAUNCHER (LOGIN) ========== -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.SMSIndia.NoActionBar"
+            android:screenOrientation="portrait">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- ========== SPLASH ACTIVITY (NOT LAUNCHER NOW) ========== -->
+        <!--
         <activity
             android:name=".SplashActivity"
             android:exported="true"
@@ -66,14 +85,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- LOGIN ACTIVITY -->
-        <activity
-            android:name=".LoginActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.SMSIndia.NoActionBar"
-            android:screenOrientation="portrait" />
+        -->
 
         <!-- MAIN ACTIVITY -->
         <activity
@@ -102,12 +114,13 @@
             android:label="Withdrawals"
             android:parentActivityName=".MainActivity"
             android:screenOrientation="portrait" />
-            
-        <activity 
-            android:name=".ui.WebTaskActivity" 
+
+        <activity
+            android:name=".ui.WebTaskActivity"
+            android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- BOOT RECEIVER (Restarts mining on phone reboot if you coded it) -->
+        <!-- BOOT RECEIVER -->
         <receiver
             android:name=".receivers.BootReceiver"
             android:enabled="true"
