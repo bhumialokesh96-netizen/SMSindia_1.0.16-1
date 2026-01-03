@@ -59,30 +59,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void checkUserAndPermissions() {
-        // ✅ FIXED: More flexible user check
-        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
-        String userId = prefs.getString("userId", null);
-        String mobile = prefs.getString("mobile", null);
-        
-        // Debug: Show what's stored
-        android.util.Log.d("MAIN_ACTIVITY", "UserID: " + userId);
-        android.util.Log.d("MAIN_ACTIVITY", "Mobile: " + mobile);
-        
-        // Check if we have SOME user data
-        boolean hasUserData = (userId != null && !userId.isEmpty()) || 
-                              (mobile != null && !mobile.isEmpty());
-        
-        if (!hasUserData) {
-            // No user data found, redirect to login
-            Toast.makeText(this, "Please login to continue", Toast.LENGTH_SHORT).show();
-            redirectToLogin();
-            return; // IMPORTANT: Stop execution here
-        }
-        
-        // If we reach here, we have user data - continue setup
-        setupUI();
+   private void checkUserAndPermissions() {
+    SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
+    String userId = prefs.getString("userId", null);
+    String mobile = prefs.getString("mobile", null);
+    
+    Log.d("MAIN_ACTIVITY", "Checking SMSINDIA_USER - UserID: " + userId + ", Mobile: " + mobile);
+    
+    if (userId == null || userId.isEmpty() || mobile == null || mobile.isEmpty()) {
+        Toast.makeText(this, "Please login to continue", Toast.LENGTH_SHORT).show();
+        redirectToLogin();
+        return;
     }
+    
+    // User data exists, continue
+    setupUI();
+}
 
     private void setupUI() {
         navView = findViewById(R.id.bottomNavigationView);

@@ -61,7 +61,7 @@ public class LoginActivity extends AppCompatActivity {
         supabaseApi = retrofit.create(SupabaseApi.class);
         
         // Check if already logged in
-        if (tokenManager.getToken() != null) {
+        if (tokenManager.getToken() != null && isUserDataSaved()) {
             navigateToMainActivity();
         }
         
@@ -75,8 +75,16 @@ public class LoginActivity extends AppCompatActivity {
         forgotPasswordBtn.setOnClickListener(v -> showForgotPasswordDialog());
     }
     
+    private boolean isUserDataSaved() {
+        // Check if user data exists in SMSINDIA_USER SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
+        String userId = prefs.getString("userId", null);
+        String mobile = prefs.getString("mobile", null);
+        return userId != null && !userId.isEmpty() && mobile != null && !mobile.isEmpty();
+    }
+    
     private String getOrCreateDeviceId() {
-        SharedPreferences prefs = getSharedPreferences("SMS_APP", MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
         String deviceId = prefs.getString("device_id", null);
         
         if (deviceId == null || deviceId.isEmpty()) {
@@ -152,10 +160,8 @@ public class LoginActivity extends AppCompatActivity {
         // Save token
         tokenManager.saveToken("Bearer " + authResponse.token);
         
-        // Save user info if available
-        if (authResponse.user != null) {
-            saveUserInfo(authResponse.user, phone);
-        }
+        // ✅ CRITICAL: Save user info to SMSINDIA_USER SharedPreferences
+        saveUserInfo(authResponse.user, phone);
         
         // Update device ID in database
         updateDeviceId(phone);
@@ -210,6 +216,9 @@ public class LoginActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     AuthResponse authResponse = response.body();
                     tokenManager.saveToken("Bearer " + authResponse.token);
+                    
+                    // ✅ CRITICAL: Save user info immediately
+                    saveUserInfo(authResponse.user, phone);
                     
                     // Create user profile
                     createUserProfile(phone, password, authResponse.user != null ? authResponse.user.id : null);
@@ -322,9 +331,13 @@ public class LoginActivity extends AppCompatActivity {
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(LoginActivity.this, "Account created successfully!", Toast.LENGTH_SHORT).show();
+                    // User info already saved, just navigate
                     navigateToMainActivity();
                 } else {
-                    Toast.makeText(LoginActivity.this, "Profile creation failed", Toast.LENGTH_SHORT).show();
+                    // Profile creation might fail, but user is already authenticated
+                    Log.e("LoginActivity", "Profile creation failed but auth succeeded: " + response.code());
+                    Toast.makeText(LoginActivity.this, "Profile creation failed, but you're logged in", Toast.LENGTH_SHORT).show();
+                    navigateToMainActivity();
                 }
             }
             
@@ -358,13 +371,48 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void saveUserInfo(AuthResponse.User user, String phone) {
-        SharedPreferences prefs = getSharedPreferences("SMS_APP", MODE_PRIVATE);
+        // ✅ ONLY save to SMSINDIA_USER (MainActivity checks this)
+        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
+        
+        // Save userId (from auth response)
         if (user != null && user.id != null) {
-            editor.putString("user_id", user.id);
+            editor.putString("userId", user.id);
+            editor.putString("user_id", user.id); // Keep both for compatibility
+        } else {
+            // Generate temp ID if auth didn't return one
+            String tempId = "user_" + System.currentTimeMillis();
+            editor.putString("userId", tempId);
+            editor.putString("user_id", tempId);
         }
-        editor.putString("user_phone", phone);
-        editor.apply();
+        
+        // Save phone
+        editor.putString("mobile", phone);
+        editor.putString("user_phone", phone); // Keep both for compatibility
+        
+        // Save email
+        editor.putString("email", phone + "@smsapp.com");
+        
+        // Save token
+        String token = tokenManager.getToken();
+        if (token != null) {
+            editor.putString("token", token);
+        }
+        
+        // Save login timestamp
+        editor.putLong("loginTime", System.currentTimeMillis());
+        
+        // Save device ID
+        editor.putString("device_id", getOrCreateDeviceId());
+        
+        // Commit changes
+        boolean saved = editor.commit();
+        
+        // Debug log
+        Log.d("LoginActivity", "User saved to SMSINDIA_USER: saved=" + saved + 
+              ", userId=" + prefs.getString("userId", "null") + 
+              ", mobile=" + prefs.getString("mobile", "null") +
+              ", token=" + (token != null ? "exists" : "null"));
     }
     
     private void handleLoginError(int errorCode) {
@@ -384,10 +432,15 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void navigateToMainActivity() {
-        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        startActivity(intent);
-        finish();
+        // Double-check user data is saved before navigating
+        if (isUserDataSaved()) {
+            Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        } else {
+            Toast.makeText(this, "Login failed - user data not saved", Toast.LENGTH_SHORT).show();
+        }
     }
     
     @Override
