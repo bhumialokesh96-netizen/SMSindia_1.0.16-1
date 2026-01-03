@@ -16,7 +16,7 @@
             android:id="@+id/img_logo"
             android:layout_width="100dp"
             android:layout_height="100dp"
-            android:src="@android:drawable/ic_lock_idle_lock"
+            android:src="@drawable/ic_lock_idle_lock"
             android:layout_marginTop="40dp"
             android:background="@drawable/circle_orange_bg"
             android:padding="20dp"
@@ -80,7 +80,7 @@
                     android:hint="Phone Number"
                     android:layout_marginBottom="20dp"
                     app:boxStrokeColor="@color/md_theme_primary"
-                    app:endIconDrawable="@android:drawable/ic_menu_call"
+                    app:endIconDrawable="@drawable/ic_phone_24dp"
                     app:endIconTint="@color/md_theme_primary"
                     app:shapeAppearanceOverlay="@style/RoundedInputStyle">
 
@@ -105,7 +105,7 @@
                     android:hint="Password"
                     android:layout_marginBottom="28dp"
                     app:boxStrokeColor="@color/md_theme_primary"
-                    app:endIconDrawable="@android:drawable/ic_lock"
+                    app:endIconDrawable="@drawable/ic_lock_24dp"
                     app:endIconTint="@color/md_theme_primary"
                     app:endIconMode="password_toggle"
                     app:shapeAppearanceOverlay="@style/RoundedInputStyle">
