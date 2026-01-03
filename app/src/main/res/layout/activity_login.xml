@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#FFF3E0"
+    android:background="@color/bg_light"
     android:fillViewport="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -11,51 +11,57 @@
         android:layout_height="wrap_content"
         android:padding="24dp">
 
+        <!-- App Logo -->
         <ImageView
             android:id="@+id/img_logo"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
             android:src="@android:drawable/ic_lock_idle_lock"
-            app:tint="#FF6F00"
             android:layout_marginTop="40dp"
+            android:background="@drawable/circle_orange_bg"
+            android:padding="20dp"
+            android:tint="@color/md_theme_primary"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
+        <!-- Welcome Text -->
         <TextView
             android:id="@+id/tv_welcome"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Welcome Back"
-            android:textColor="#FF6F00"
-            android:textSize="28sp"
+            android:textColor="@color/md_theme_primary"
+            android:textSize="32sp"
             android:textStyle="bold"
             android:layout_marginTop="16dp"
             app:layout_constraintTop_toBottomOf="@id/img_logo"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
+        <!-- Subtitle -->
         <TextView
+            android:id="@+id/tv_subtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Sign in to continue earning"
             android:textColor="#757575"
-            android:textSize="14sp"
+            android:textSize="16sp"
+            android:layout_marginTop="8dp"
             app:layout_constraintTop_toBottomOf="@id/tv_welcome"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
+        <!-- Login Card -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/loginCard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="40dp"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="8dp"
-            app:cardBackgroundColor="#FFFFFF"
-            app:strokeColor="#FFE0B2"
-            app:strokeWidth="1dp"
-            app:layout_constraintTop_toBottomOf="@id/tv_welcome"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@color/white"
+            app:layout_constraintTop_toBottomOf="@id/tv_subtitle"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -63,32 +69,125 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="24dp">
+                android:padding="28dp">
 
-                <!-- fields unchanged -->
+                <!-- Phone Number Input -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/phoneLayout"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Phone Number"
+                    android:layout_marginBottom="20dp"
+                    app:boxStrokeColor="@color/md_theme_primary"
+                    app:endIconDrawable="@android:drawable/ic_menu_call"
+                    app:endIconTint="@color/md_theme_primary"
+                    app:shapeAppearanceOverlay="@style/RoundedInputStyle">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/phoneInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="phone"
+                        android:maxLength="10"
+                        android:textColor="#212121"
+                        android:textSize="16sp"
+                        android:padding="16dp"/>
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Password Input -->
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/passwordLayout"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Password"
+                    android:layout_marginBottom="28dp"
+                    app:boxStrokeColor="@color/md_theme_primary"
+                    app:endIconDrawable="@android:drawable/ic_lock"
+                    app:endIconTint="@color/md_theme_primary"
+                    app:endIconMode="password_toggle"
+                    app:shapeAppearanceOverlay="@style/RoundedInputStyle">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/passwordInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:inputType="textPassword"
+                        android:textColor="#212121"
+                        android:textSize="16sp"
+                        android:padding="16dp"/>
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <!-- Login Button -->
+                <Button
+                    android:id="@+id/loginBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="LOGIN"
+                    android:textAllCaps="false"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/md_theme_primary"
+                    android:textColor="@color/white"
+                    android:letterSpacing="0.1"
+                    android:layout_marginBottom="16dp"
+                    style="@style/Widget.MaterialComponents.Button"/>
+
+                <!-- Signup Button -->
+                <Button
+                    android:id="@+id/signupBtn"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:text="CREATE NEW ACCOUNT"
+                    android:textAllCaps="false"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#2196F3"
+                    android:textColor="@color/white"
+                    android:letterSpacing="0.1"
+                    android:layout_marginBottom="20dp"
+                    style="@style/Widget.MaterialComponents.Button"/>
+
+                <!-- Forgot Password -->
+                <TextView
+                    android:id="@+id/forgotPasswordBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Forgot Password?"
+                    android:textColor="@color/md_theme_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_gravity="center_horizontal"
+                    android:padding="12dp"/>
+
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Quick Note -->
         <TextView
-            android:id="@+id/registrationNote"
+            android:id="@+id/quickNote"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Note: Email is required for verification"
-            android:textSize="12sp"
-            android:textColor="#FF5722"
+            android:text="✓ Login with your phone number only"
+            android:textSize="13sp"
+            android:textColor="#4CAF50"
             android:layout_marginTop="16dp"
             app:layout_constraintTop_toBottomOf="@id/loginCard"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
+        <!-- Device ID Display -->
         <TextView
             android:id="@+id/deviceIdText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Secure Device ID: ..."
-            android:textSize="10sp"
-            android:textColor="#BDBDBD"
+            android:textSize="11sp"
+            android:textColor="#9E9E9E"
             android:layout_marginBottom="20dp"
             android:layout_marginTop="30dp"
             app:layout_constraintBottom_toBottomOf="parent"

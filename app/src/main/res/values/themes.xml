@@ -20,4 +20,15 @@
         <item name="cornerSize">50%</item>
     </style>
 
+    <!-- Rounded Input Style -->
+    <style name="RoundedInputStyle">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">12dp</item>
+    </style>
+
+    <!-- Rounded Button Style -->
+    <style name="RoundedButton" parent="Widget.MaterialComponents.Button">
+        <item name="cornerRadius">28dp</item>
+    </style>
+
 </resources>
