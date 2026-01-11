@@ -12,11 +12,28 @@ This directory contains the complete database schema for the SMS India applicati
    - `03_triggers.sql` - Creates triggers for automated actions
    - `04_indexes.sql` - Creates indexes for performance optimization
    - `05_rls_policies.sql` - Sets up Row Level Security policies
+   - `06_referral_system_enhancement.sql` - **NEW**: Adds referral code system and SMS metrics
 
 3. **Update your app configuration:**
    - Copy `local.properties.template` to `local.properties`
    - Add your Supabase project URL and anon key
    - Or set environment variables `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+
+## Recent Updates (v1.0.16-1)
+
+### Referral System Enhancement
+The `06_referral_system_enhancement.sql` migration adds:
+- **Referral Code Fields**: Each user gets a unique referral code (their phone number)
+- **Company Referral Code**: Default code "666666" for users without referrals
+- **Referral Rewards**: 
+  - Referrer gets ₹10 per successful referral
+  - Referee gets ₹5 + 50 coins when using a friend's code
+  - Company referral users get 25 bonus coins
+- **Referral Transactions Table**: Tracks all referral relationships and rewards
+- **SMS Metrics Table**: Tracks daily SMS delivery statistics for admin dashboard
+- **Automated Triggers**: Auto-reward users on referral signups
+
+**To apply this update**: Execute `06_referral_system_enhancement.sql` in your Supabase SQL editor.
 
 ## Database Architecture
 

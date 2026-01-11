@@ -50,6 +50,42 @@
             android:orientation="vertical"
             android:padding="20dp">
 
+            <!-- Referral Benefits Banner -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardCornerRadius="12dp"
+                app:cardBackgroundColor="#E3F2FD"
+                app:cardElevation="0dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="🎁 How Referral Works"
+                        android:textColor="#1976D2"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="8dp"/>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="✓ Your friend gets: ₹5 + 50 coins\n✓ You get: ₹10 per referral\n✓ Unlimited referrals = Unlimited earnings!"
+                        android:textColor="#0D47A1"
+                        android:textSize="12sp"
+                        android:lineSpacingExtra="2dp"/>
+
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
             <!-- Stats Row -->
             <LinearLayout
                 android:layout_width="match_parent"
