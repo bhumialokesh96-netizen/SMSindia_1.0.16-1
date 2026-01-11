@@ -3,58 +3,54 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="24dp"
-    app:cardCornerRadius="24dp"
-    app:cardBackgroundColor="#FFFFFF"
-    app:strokeColor="#FFC107"
-    app:strokeWidth="4dp"
-    app:cardElevation="8dp">
+    android:layout_margin="@dimen/spacing_xl"
+    app:cardCornerRadius="@dimen/corner_radius_xl"
+    app:cardBackgroundColor="@color/card_background"
+    app:strokeColor="@color/warning"
+    app:strokeWidth="@dimen/stroke_width_thick"
+    app:cardElevation="@dimen/elevation_lg">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="30dp"
+        android:padding="@dimen/dialog_padding"
         android:gravity="center">
 
         <!-- Success Icon (Green) -->
         <ImageView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_width="@dimen/icon_size_2xl"
+            android:layout_height="@dimen/icon_size_2xl"
             android:src="@android:drawable/checkbox_on_background"
-            app:tint="#4CAF50"/>
+            app:tint="@color/success"/>
 
         <!-- Title (Dark Green) -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Withdrawal Successful!"
-            android:textSize="22sp"
-            android:textStyle="bold"
-            android:layout_marginTop="16dp"
-            android:textColor="#1B5E20"/>
+            android:textAppearance="@style/TextAppearance.App.Headline4"
+            android:layout_marginTop="@dimen/spacing_base"
+            android:textColor="@color/secondary_900"/>
 
         <!-- Message -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Your request has been submitted.\nThe amount will be credited to your bank account within 24 to 48 hours."
-            android:textSize="14sp"
-            android:textColor="#757575"
+            android:textAppearance="@style/TextAppearance.App.Body2"
             android:textAlignment="center"
-            android:layout_marginTop="12dp"
-            android:lineSpacingMultiplier="1.2"/>
+            android:layout_marginTop="@dimen/spacing_md"/>
 
         <!-- Button (3D Gold Style) -->
         <Button
             android:id="@+id/btn_close_success"
+            style="@style/Widget.App.Button.Rounded"
             android:layout_width="200dp"
-            android:layout_height="55dp"
+            android:layout_height="@dimen/button_height_large"
             android:text="OKAY, GOT IT"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#5D4037"
-            android:layout_marginTop="24dp"
+            android:textColor="@color/button_start_text"
+            android:layout_marginTop="@dimen/spacing_xl"
             android:background="@drawable/bg_gold_3d"
             app:backgroundTint="@null"/>
 
