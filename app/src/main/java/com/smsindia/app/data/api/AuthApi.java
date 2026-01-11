@@ -1,4 +1,6 @@
-package com.smsindia.app.service;
+package com.smsindia.app.data.api;
+
+import com.smsindia.app.data.model.*;
 
 import retrofit2.Call;
 import retrofit2.http.Body;

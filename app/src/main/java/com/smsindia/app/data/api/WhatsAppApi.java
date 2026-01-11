@@ -1,4 +1,6 @@
-package com.smsindia.app.service;
+package com.smsindia.app.data.api;
+
+import com.smsindia.app.data.model.*;
 
 import com.google.gson.internal.LinkedTreeMap;
 import java.util.Map;

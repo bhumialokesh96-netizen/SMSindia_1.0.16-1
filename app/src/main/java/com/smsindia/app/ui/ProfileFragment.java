@@ -25,9 +25,9 @@ import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.LoginActivity;
 import com.smsindia.app.R;
 import com.smsindia.app.config.Constants;
-import com.smsindia.app.service.AppConfigModel;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.UserModel;
+import com.smsindia.app.data.model.AppConfigModel;
+import com.smsindia.app.data.api.SupabaseApi;
+import com.smsindia.app.data.model.UserModel;
 
 import java.util.HashMap;
 import java.util.List;

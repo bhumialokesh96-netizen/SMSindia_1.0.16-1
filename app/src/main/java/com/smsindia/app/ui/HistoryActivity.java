@@ -16,8 +16,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.smsindia.app.R;
 import com.smsindia.app.config.Constants;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.TransactionModel;
+import com.smsindia.app.data.api.SupabaseApi;
+import com.smsindia.app.data.model.TransactionModel;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;

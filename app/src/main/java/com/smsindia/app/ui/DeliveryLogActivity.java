@@ -13,8 +13,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.smsindia.app.R;
 import com.smsindia.app.config.Constants;
-import com.smsindia.app.service.SmsLogModel;
-import com.smsindia.app.service.SupabaseApi;
+import com.smsindia.app.data.model.SmsLogModel;
+import com.smsindia.app.data.api.SupabaseApi;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;

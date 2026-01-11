@@ -17,9 +17,9 @@ import androidx.core.app.NotificationCompat;
 
 import com.smsindia.app.R;
 import com.smsindia.app.config.Constants;
-import com.smsindia.app.service.BatchResultRequest;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.TaskModel;
+import com.smsindia.app.data.model.BatchResultRequest;
+import com.smsindia.app.data.api.SupabaseApi;
+import com.smsindia.app.data.model.TaskModel;
 import com.smsindia.app.service.TokenManager; // ADD THIS IMPORT
 
 import java.util.ArrayList;

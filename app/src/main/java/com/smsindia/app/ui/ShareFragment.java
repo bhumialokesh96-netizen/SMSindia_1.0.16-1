@@ -22,8 +22,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
 import com.smsindia.app.config.Constants;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.UserModel;
+import com.smsindia.app.data.api.SupabaseApi;
+import com.smsindia.app.data.model.UserModel;
 
 import java.util.ArrayList;
 import java.util.HashMap;

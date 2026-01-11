@@ -1,4 +1,6 @@
-package com.smsindia.app.service;
+package com.smsindia.app.data.api;
+
+import com.smsindia.app.data.model.*;
 
 import java.util.List;
 import java.util.Map;
