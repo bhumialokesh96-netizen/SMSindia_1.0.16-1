@@ -11,6 +11,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -30,8 +31,8 @@ import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
-import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.R;
+import com.smsindia.app.service.AdRewardResponse;
 import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.UserModel;
@@ -353,22 +354,40 @@ public class HomeFragment extends Fragment {
     }
 
     private void updateAdProgress() {
-        if(userIdUUID.isEmpty()) return;
-        Map<String, Object> body = new HashMap<>(); body.put("p_user_id", userIdUUID);
+        if(userIdUUID == null || userIdUUID.isEmpty()) {
+            Log.w("HomeFragment", "User ID is empty, cannot update ad progress");
+            return;
+        }
+        
+        Map<String, Object> body = new HashMap<>();
+        body.put("p_user_id", userIdUUID);
         
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.watchAdReward(SUPABASE_KEY, authHeader, body).enqueue(new Callback<LinkedTreeMap<String, Object>>() {
-            @Override public void onResponse(Call<LinkedTreeMap<String, Object>> c, Response<LinkedTreeMap<String, Object>> r) {
-                if(r.isSuccessful() && r.body() != null) {
-                    int p = ((Double)r.body().get("progress")).intValue();
-                    if(pbAdProgress != null) pbAdProgress.setProgress(p);
-                    if(tvAdStatus != null) tvAdStatus.setText("Progress: " + p + "/10");
-                    Toast.makeText(getContext(), (String)r.body().get("message"), Toast.LENGTH_SHORT).show();
+        supabaseApi.watchAdReward(SUPABASE_KEY, authHeader, body).enqueue(new Callback<AdRewardResponse>() {
+            @Override 
+            public void onResponse(Call<AdRewardResponse> call, Response<AdRewardResponse> response) {
+                if(response.isSuccessful() && response.body() != null) {
+                    AdRewardResponse adResponse = response.body();
+                    
+                    // Update UI based on response
+                    String message = adResponse.getMessage();
+                    if (message != null && !message.isEmpty()) {
+                        Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
+                    }
+                    
+                    // Refresh user data to get updated progress
+                    fetchAdProgress();
+                } else {
+                    Log.e("HomeFragment", "Ad reward response not successful: " + response.code());
                 }
             }
-            @Override public void onFailure(Call<LinkedTreeMap<String, Object>> c, Throwable t) {}
+            
+            @Override 
+            public void onFailure(Call<AdRewardResponse> call, Throwable t) {
+                Log.e("HomeFragment", "Ad reward request failed", t);
+            }
         });
     }
     
@@ -377,14 +396,28 @@ public class HomeFragment extends Fragment {
         String authHeader = getAuthHeader();
         
         supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
-            @Override public void onResponse(Call<List<UserModel>> c, Response<List<UserModel>> r) {
-                if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
-                    int p = r.body().get(0).adProgress;
-                    if(pbAdProgress != null) pbAdProgress.setProgress(p);
-                    if(tvAdStatus != null) tvAdStatus.setText("Progress: " + p + "/10");
+            @Override 
+            public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
+                if(response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
+                    UserModel user = response.body().get(0);
+                    if (user != null) {
+                        int progress = user.adProgress;
+                        if(pbAdProgress != null) {
+                            pbAdProgress.setProgress(progress);
+                        }
+                        if(tvAdStatus != null) {
+                            tvAdStatus.setText("Progress: " + progress + "/10");
+                        }
+                    }
+                } else {
+                    Log.e("HomeFragment", "Failed to fetch ad progress: " + response.code());
                 }
             }
-            @Override public void onFailure(Call<List<UserModel>> c, Throwable t) {}
+            
+            @Override 
+            public void onFailure(Call<List<UserModel>> call, Throwable t) {
+                Log.e("HomeFragment", "Ad progress request failed", t);
+            }
         });
     }
 }
