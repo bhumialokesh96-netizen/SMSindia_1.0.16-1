@@ -190,7 +190,7 @@ public class RegisterActivity extends AppCompatActivity {
         Map<String, Object> userData = new HashMap<>();
         userData.put("email", email);
         userData.put("phone", phone);
-        userData.put("password", password);
+        // Note: Password is already securely stored by Supabase Auth, no need to store it again
         userData.put("device_id", getOrCreateDeviceId());
         userData.put("balance", 0.0);
         userData.put("today_income", 0.0);
@@ -266,27 +266,21 @@ public class RegisterActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences(Constants.PREFS_USER, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         
-        // Save userId
+        // Save userId using constant key only
         if (user != null && user.getId() != null) {
             String userId = user.getId();
             editor.putString(Constants.PREFS_USER_ID, userId);
-            editor.putString("user_id", userId);
         } else {
+            // Generate temp ID if auth didn't return one
             String tempId = "user_" + System.currentTimeMillis();
             editor.putString(Constants.PREFS_USER_ID, tempId);
-            editor.putString("user_id", tempId);
         }
         
-        // Save email and phone
+        // Save email and phone using constant keys
         editor.putString("email", email);
         editor.putString(Constants.PREFS_MOBILE, phone);
-        editor.putString("user_phone", phone);
         
-        // Save token
-        String token = tokenManager.getToken();
-        if (token != null) {
-            editor.putString("token", token);
-        }
+        // Token is already managed by TokenManager, no need to store again here
         
         // Save login timestamp
         editor.putLong("loginTime", System.currentTimeMillis());

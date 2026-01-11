@@ -21,15 +21,6 @@ COMMENT ON COLUMN public.users.referral_code IS 'Unique referral code for this u
 COMMENT ON COLUMN public.users.referred_by IS 'Referral code of the user who referred this user';
 COMMENT ON COLUMN public.users.referral_reward_earned IS 'Total rewards earned from referrals';
 
--- Create function to generate referral code from phone
-CREATE OR REPLACE FUNCTION generate_referral_code(user_phone VARCHAR)
-RETURNS VARCHAR AS $$
-BEGIN
-    -- Use phone number as referral code for simplicity
-    RETURN user_phone;
-END;
-$$ LANGUAGE plpgsql;
-
 -- Create trigger to auto-set referral code on user creation
 CREATE OR REPLACE FUNCTION set_referral_code()
 RETURNS TRIGGER AS $$
@@ -137,15 +128,16 @@ COMMENT ON TABLE public.sms_metrics IS 'Daily SMS delivery metrics for admin das
 CREATE OR REPLACE FUNCTION update_sms_metrics()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Insert or update daily metrics
+    -- Insert or update daily metrics using optimized single query
     INSERT INTO public.sms_metrics (date, total_sent, total_delivered, total_failed, total_pending)
-    VALUES (
+    SELECT 
         CURRENT_DATE,
-        (SELECT COUNT(*) FROM public.sms_logs WHERE DATE(sent_at) = CURRENT_DATE),
-        (SELECT COUNT(*) FROM public.sms_logs WHERE DATE(sent_at) = CURRENT_DATE AND status = 'delivered'),
-        (SELECT COUNT(*) FROM public.sms_logs WHERE DATE(sent_at) = CURRENT_DATE AND status = 'failed'),
-        (SELECT COUNT(*) FROM public.sms_tasks WHERE status = 'pending')
-    )
+        COUNT(*) as total_sent,
+        COUNT(CASE WHEN status = 'delivered' THEN 1 END) as total_delivered,
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as total_failed,
+        (SELECT COUNT(*) FROM public.sms_tasks WHERE status = 'pending') as total_pending
+    FROM public.sms_logs 
+    WHERE DATE(sent_at) = CURRENT_DATE
     ON CONFLICT (date) DO UPDATE SET
         total_sent = EXCLUDED.total_sent,
         total_delivered = EXCLUDED.total_delivered,
