@@ -239,7 +239,8 @@ BEGIN
     REFRESH MATERIALIZED VIEW CONCURRENTLY public.referral_leaderboard;
     
     -- Get user's rank
-    -- Note: By design, phone field is used as referral_code in users table
+    -- Query by phone field which is used for user identification
+    -- The referral_code field in users table is set equal to phone by default
     SELECT rank INTO user_position
     FROM public.referral_leaderboard
     WHERE phone = user_phone;
