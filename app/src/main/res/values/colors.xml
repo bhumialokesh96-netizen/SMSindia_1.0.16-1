@@ -127,6 +127,7 @@
     <color name="text_disabled">#E0E0E0</color>
     <color name="text_on_primary">#FFFFFF</color>
     <color name="text_on_secondary">#FFFFFF</color>
+    <color name="accent_blue">#1976D2</color> <!-- Use your preferred shade of blue -->
     
     <!-- Divider & Border -->
     <color name="divider">#E0E0E0</color>
