@@ -40,7 +40,9 @@ public class ShareFragment extends Fragment {
 
 
     private TextView tvTotalRefs, tvEarnings, tvCoins, tvCode;
+    private TextView tvTierName, tvTierProgress;
     private RecyclerView recyclerMilestones;
+    private Button btnLeaderboard, btnAnalytics;
     
     private SupabaseApi supabaseApi;
     private String mobileNumber;
@@ -71,7 +73,11 @@ public class ShareFragment extends Fragment {
         tvEarnings = v.findViewById(R.id.tv_referral_earnings);
         tvCoins = v.findViewById(R.id.tv_total_coins);
         tvCode = v.findViewById(R.id.tv_share_code);
+        tvTierName = v.findViewById(R.id.tv_tier_name);
+        tvTierProgress = v.findViewById(R.id.tv_tier_progress);
         Button btnShare = v.findViewById(R.id.btn_share_app);
+        btnLeaderboard = v.findViewById(R.id.btn_leaderboard);
+        btnAnalytics = v.findViewById(R.id.btn_analytics);
         recyclerMilestones = v.findViewById(R.id.recycler_milestones);
 
         SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
@@ -83,6 +89,12 @@ public class ShareFragment extends Fragment {
         
         // --- SHARE LINK ---
         btnShare.setOnClickListener(view -> shareReferralLink());
+        
+        // --- LEADERBOARD ---
+        btnLeaderboard.setOnClickListener(view -> openLeaderboard());
+        
+        // --- ANALYTICS ---
+        btnAnalytics.setOnClickListener(view -> openAnalytics());
 
         return v;
     }
@@ -150,6 +162,9 @@ public class ShareFragment extends Fragment {
                         tvEarnings.setText("₹0.0"); 
                         tvTotalRefs.setText(String.valueOf(userReferralCount));
                         tvCoins.setText(String.valueOf(currentCoins));
+                        
+                        // Update tier information
+                        updateTierDisplay(user);
 
                         // 2. Parse Claimed Milestones (JSONB -> Map)
                         claimedMilestones.clear();
@@ -169,6 +184,44 @@ public class ShareFragment extends Fragment {
                     // Fail silently
                 }
             });
+    }
+    
+    private void updateTierDisplay(UserModel user) {
+        String tierEmoji = user.getTierBadge();
+        String tierName = user.getTierName();
+        tvTierName.setText(tierEmoji + " " + tierName + " Tier");
+        
+        int toNext = user.getReferralsToNextTier();
+        if (toNext > 0) {
+            tvTierProgress.setText("🎯 " + toNext + " more referrals to next tier");
+            tvTierProgress.setVisibility(View.VISIBLE);
+        } else {
+            tvTierProgress.setText("🎉 Maximum tier reached!");
+            tvTierProgress.setVisibility(View.VISIBLE);
+        }
+        
+        // Save to SharedPreferences for other fragments
+        SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
+        prefs.edit()
+            .putInt("current_tier", user.getCurrentTier())
+            .putInt("referral_count", user.referralCount)
+            .apply();
+    }
+    
+    private void openLeaderboard() {
+        requireActivity().getSupportFragmentManager()
+            .beginTransaction()
+            .replace(R.id.fragment_container, new ReferralLeaderboardFragment())
+            .addToBackStack(null)
+            .commit();
+    }
+    
+    private void openAnalytics() {
+        requireActivity().getSupportFragmentManager()
+            .beginTransaction()
+            .replace(R.id.fragment_container, new ReferralAnalyticsFragment())
+            .addToBackStack(null)
+            .commit();
     }
 
     private void claimReward(Milestone m) {

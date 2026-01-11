@@ -20,6 +20,9 @@ public class UserModel {
     @SerializedName("sms_count") public int smsCount;
     @SerializedName("ad_progress") public int adProgress;
     @SerializedName("streak") public int streak;
+    
+    @SerializedName("current_tier") public int currentTier;
+    @SerializedName("tier_updated_at") public String tierUpdatedAt;
 
     @SerializedName("bank_details") public Object bankDetails;
     @SerializedName("claimed_milestones") public Object claimedMilestones;
@@ -33,4 +36,34 @@ public class UserModel {
     public double getTodayIncome() { return todayIncome; }
     public double getTotalIncome() { return totalIncome; }
     public long getCoins() { return coins; } // Fixes Spin/Share errors
+    public int getCurrentTier() { return currentTier > 0 ? currentTier : 1; }
+    
+    // Helper methods for tier display
+    public String getTierName() {
+        switch (getCurrentTier()) {
+            case 3: return "Gold";
+            case 2: return "Silver";
+            case 1:
+            default: return "Bronze";
+        }
+    }
+    
+    public String getTierBadge() {
+        switch (getCurrentTier()) {
+            case 3: return "👑";
+            case 2: return "⭐";
+            case 1:
+            default: return "🏅";
+        }
+    }
+    
+    public int getReferralsToNextTier() {
+        int current = referralCount;
+        switch (getCurrentTier()) {
+            case 1: return Math.max(0, 11 - current); // To Silver
+            case 2: return Math.max(0, 51 - current); // To Gold
+            case 3:
+            default: return 0; // Max tier
+        }
+    }
 }

@@ -163,4 +163,49 @@ public interface SupabaseApi {
     
     // Comment out or delete the updateUserPassword method
     // You already have updateUser() method at the top
+    
+    // ==========================================
+    // 7. REFERRAL LEADERBOARD & TIERS
+    // ==========================================
+    
+    // Get all tier definitions
+    @GET("/rest/v1/referral_tiers")
+    Call<List<ReferralTier>> getReferralTiers(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Query("order") String order
+    );
+    
+    // Get leaderboard entries
+    @POST("/rest/v1/rpc/get_top_referrers")
+    Call<List<LeaderboardEntry>> getTopReferrers(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Body Map<String, Object> body
+    );
+    
+    // Get user's leaderboard position
+    @POST("/rest/v1/rpc/get_user_leaderboard_position")
+    Call<List<Map<String, Object>>> getUserLeaderboardPosition(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Body Map<String, Object> body
+    );
+    
+    // Get referral analytics
+    @GET("/rest/v1/referral_analytics")
+    Call<List<ReferralAnalytics>> getReferralAnalytics(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Query("user_id") String userIdQuery
+    );
+    
+    // Get referral transactions
+    @GET("/rest/v1/referral_transactions")
+    Call<List<Map<String, Object>>> getReferralTransactions(
+        @Header("apikey") String apiKey,
+        @Header("Authorization") String auth,
+        @Query("referrer_id") String referrerIdQuery,
+        @Query("order") String order
+    );
 }

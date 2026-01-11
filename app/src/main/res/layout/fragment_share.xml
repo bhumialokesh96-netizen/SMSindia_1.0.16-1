@@ -162,6 +162,35 @@
                         android:textColor="#757575"/>
                 </LinearLayout>
             </LinearLayout>
+            
+            <!-- Tier Display -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#E0E0E0"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="12dp"/>
+            
+            <TextView
+                android:id="@+id/tv_tier_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🏅 Bronze Tier"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#CD7F32"
+                android:gravity="center"/>
+            
+            <TextView
+                android:id="@+id/tv_tier_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="🎯 6 more referrals to next tier"
+                android:textSize="13sp"
+                android:textColor="#757575"
+                android:gravity="center"
+                android:layout_marginTop="4dp"
+                android:visibility="visible"/>
 
             <!-- Divider -->
             <View
@@ -205,6 +234,38 @@
                 android:background="@drawable/bg_gold_3d"
                 app:backgroundTint="@null"
                 android:layout_marginTop="16dp"/>
+            
+            <!-- Navigation Buttons -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="12dp">
+                
+                <Button
+                    android:id="@+id/btn_leaderboard"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="🏆 Leaderboard"
+                    android:textSize="13sp"
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/bg_orange_border"
+                    android:backgroundTint="#1B5E20"
+                    android:layout_marginEnd="6dp"/>
+                
+                <Button
+                    android:id="@+id/btn_analytics"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:text="📊 Analytics"
+                    android:textSize="13sp"
+                    android:textColor="#FFFFFF"
+                    android:background="@drawable/bg_orange_border"
+                    android:backgroundTint="#1976D2"
+                    android:layout_marginStart="6dp"/>
+            </LinearLayout>
 
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
