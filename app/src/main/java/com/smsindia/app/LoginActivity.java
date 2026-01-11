@@ -18,6 +18,7 @@ import com.smsindia.app.data.api.SupabaseApi;
 import com.smsindia.app.data.model.AuthResponse;
 import com.smsindia.app.data.model.LoginRequest;
 import com.smsindia.app.service.TokenManager;
+import com.smsindia.app.utils.ErrorHandler;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -144,7 +145,7 @@ public class LoginActivity extends AppCompatActivity {
                     AuthResponse authResponse = response.body();
                     completeLogin(authResponse, phone);
                 } else {
-                    handleLoginError(response.code());
+                    handleLoginError(response);
                 }
             }
             
@@ -359,20 +360,10 @@ public class LoginActivity extends AppCompatActivity {
               ", token=" + (token != null ? "exists" : "null"));
     }
     
-    private void handleLoginError(int errorCode) {
-        switch (errorCode) {
-            case 400:
-                Toast.makeText(this, "Invalid phone or password", Toast.LENGTH_SHORT).show();
-                break;
-            case 401:
-                Toast.makeText(this, "Unauthorized", Toast.LENGTH_SHORT).show();
-                break;
-            case 404:
-                Toast.makeText(this, "Account not found. Please sign up first.", Toast.LENGTH_SHORT).show();
-                break;
-            default:
-                Toast.makeText(this, "Login failed. Please try again.", Toast.LENGTH_SHORT).show();
-        }
+    private void handleLoginError(Response<AuthResponse> response) {
+        String errorMessage = ErrorHandler.getErrorMessage(response);
+        Toast.makeText(this, errorMessage, Toast.LENGTH_LONG).show();
+        Log.e("LoginActivity", "Login failed with code " + response.code() + ": " + errorMessage);
     }
     
     private void navigateToMainActivity() {

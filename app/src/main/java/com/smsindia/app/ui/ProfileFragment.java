@@ -28,6 +28,7 @@ import com.smsindia.app.config.Constants;
 import com.smsindia.app.data.model.AppConfigModel;
 import com.smsindia.app.data.api.SupabaseApi;
 import com.smsindia.app.data.model.UserModel;
+import com.smsindia.app.utils.ErrorHandler;
 
 import java.util.HashMap;
 import java.util.List;
@@ -399,13 +400,8 @@ public class ProfileFragment extends Fragment {
                         parentDialog.dismiss();
                         showSuccessPopup();
                     } else {
-                        try {
-                            String errorBody = response.errorBody() != null ? 
-                                response.errorBody().string() : "Unknown error";
-                            Toast.makeText(getContext(), "Failed: " + errorBody, Toast.LENGTH_LONG).show();
-                        } catch (Exception e) {
-                            Toast.makeText(getContext(), "Request Failed", Toast.LENGTH_SHORT).show();
-                        }
+                        String errorMessage = ErrorHandler.getErrorMessage(response);
+                        Toast.makeText(getContext(), errorMessage, Toast.LENGTH_LONG).show();
                     }
                 }
 

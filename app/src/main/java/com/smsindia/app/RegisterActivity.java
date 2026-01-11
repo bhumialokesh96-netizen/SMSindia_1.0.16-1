@@ -17,6 +17,7 @@ import com.smsindia.app.data.api.SupabaseApi;
 import com.smsindia.app.data.model.AuthResponse;
 import com.smsindia.app.data.model.RegisterRequest;
 import com.smsindia.app.service.TokenManager;
+import com.smsindia.app.utils.ErrorHandler;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -161,18 +162,9 @@ public class RegisterActivity extends AppCompatActivity {
                     createUserProfile(email, phone, password, referralCode, user != null ? user.getId() : null);
                     
                 } else {
-                    String errorMessage = "Registration failed";
-                    try {
-                        if (response.errorBody() != null) {
-                            String errorBody = response.errorBody().string();
-                            if (errorBody.contains("already registered") || errorBody.contains("already exists")) {
-                                errorMessage = "Email or phone already registered. Please login.";
-                            }
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    String errorMessage = ErrorHandler.getErrorMessage(response);
                     Toast.makeText(RegisterActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "Registration failed with code " + response.code() + ": " + errorMessage);
                 }
             }
             
