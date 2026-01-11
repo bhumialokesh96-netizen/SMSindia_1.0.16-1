@@ -73,7 +73,7 @@ public class LoginActivity extends AppCompatActivity {
         
         // Set up click listeners
         loginBtn.setOnClickListener(v -> handleLogin());
-        signupBtn.setOnClickListener(v -> handleSignup());
+        signupBtn.setOnClickListener(v -> navigateToRegister());
         forgotPasswordBtn.setOnClickListener(v -> showForgotPasswordDialog());
     }
     
@@ -182,92 +182,13 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void handleSignup() {
-        String phone = phoneInput.getText().toString().trim();
-        String password = passwordInput.getText().toString().trim();
-        
-        // Validation
-        if (TextUtils.isEmpty(phone)) {
-            phoneInput.setError("Phone number is required");
-            return;
-        }
-        
-        if (!phone.matches("\\d{10}")) {
-            phoneInput.setError("Enter valid 10-digit phone number");
-            return;
-        }
-        
-        if (TextUtils.isEmpty(password)) {
-            passwordInput.setError("Password is required");
-            return;
-        }
-        
-        if (password.length() < 6) {
-            passwordInput.setError("Password must be at least 6 characters");
-            return;
-        }
-        
-        signupBtn.setEnabled(false);
-        signupBtn.setText("CREATING ACCOUNT...");
-        
-        // Generate email from phone (for Supabase auth compatibility)
-        String email = phone + "@smsapp.com";
-        
-        // Signup with phone (using email field for auth)
-        LoginRequest request = new LoginRequest();
-        request.email = email;
-        request.password = password;
-        
-        Call<AuthResponse> call = authApi.signup(Constants.SUPABASE_ANON_KEY, request);
-        call.enqueue(new Callback<AuthResponse>() {
-            @Override
-            public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
-                signupBtn.setEnabled(true);
-                signupBtn.setText("CREATE NEW ACCOUNT");
-                
-                if (response.isSuccessful() && response.body() != null) {
-                    AuthResponse authResponse = response.body();
-                    
-                    // Validate response
-                    if (!authResponse.isValid()) {
-                        Toast.makeText(LoginActivity.this, "Invalid signup response", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    
-                    String token = authResponse.getToken();
-                    if (token != null) {
-                        tokenManager.saveToken("Bearer " + token);
-                    }
-                    
-                    // ✅ CRITICAL: Save user info immediately
-                    saveUserInfo(authResponse.getUser(), phone);
-                    
-                    // Create user profile
-                    AuthResponse.User user = authResponse.getUser();
-                    createUserProfile(phone, password, user != null ? user.getId() : null);
-                    
-                } else {
-                    String errorMessage = "Signup failed";
-                    try {
-                        if (response.errorBody() != null) {
-                            String errorBody = response.errorBody().string();
-                            if (errorBody.contains("already registered") || errorBody.contains("already exists")) {
-                                errorMessage = "Phone number already registered. Please login.";
-                            }
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_LONG).show();
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<AuthResponse> call, Throwable t) {
-                signupBtn.setEnabled(true);
-                signupBtn.setText("CREATE NEW ACCOUNT");
-                Toast.makeText(LoginActivity.this, "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
+        // Redirect to new RegisterActivity with better UX
+        navigateToRegister();
+    }
+    
+    private void navigateToRegister() {
+        Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
+        startActivity(intent);
     }
     
     private void showForgotPasswordDialog() {

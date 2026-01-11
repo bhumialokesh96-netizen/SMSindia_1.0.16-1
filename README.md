@@ -5,13 +5,15 @@ A modern Android application that allows users to earn money by sending SMS mess
 ## 🌟 Features
 
 - **SMS Mining**: Earn money by sending SMS through automated tasks
+- **Modern Registration**: Easy signup with email, phone, and optional referral codes
+- **Powerful Referral System**: Earn ₹10 per referral, friends get ₹5 + 50 coins
 - **Batch Processing**: Handle multiple SMS tasks efficiently
 - **Wallet System**: Track earnings and manage withdrawals
 - **Daily Bonuses**: Check-in daily for streak rewards
 - **Spin Wheel**: Gamified earning experience
 - **Ad Rewards**: Watch ads to earn additional income
-- **Referral System**: Earn by inviting friends
-- **Secure Authentication**: Phone-based login with OTP
+- **Referral System**: Unlimited earning potential through referrals
+- **Secure Authentication**: Modern registration with no OTP hassles
 - **Real-time Updates**: Push notifications via FCM
 
 ## 🏗️ Architecture
@@ -195,6 +197,16 @@ TELEGRAM_TO               # Telegram chat ID
 - Fallback defaults for development
 
 ## 📊 Version History
+
+- **v1.0.16-1** - Registration System Overhaul 🎉
+  - Modern registration screen with email support
+  - Enhanced referral system with auto-fill company code (666666)
+  - Referral rewards: ₹10 for referrer, ₹5 + 50 coins for referee
+  - No OTP verification for streamlined signup
+  - SMS metrics tracking for admin dashboard
+  - Enhanced ShareFragment with referral benefits display
+  - Complete database migration for referral system
+  - See [Registration System Guide](docs/REGISTRATION_SYSTEM.md) for details
 
 - **v1.0.16** - Major restructuring and database setup
   - Security: Removed all hardcoded API keys
