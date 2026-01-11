@@ -1,4 +1,4 @@
-package com.smsindia.app.service;
+package com.smsindia.app.data.model;
 
 import com.google.gson.annotations.SerializedName;
 import java.util.List;

@@ -21,8 +21,9 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
 import com.smsindia.app.R;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.UserModel;
+import com.smsindia.app.config.Constants;
+import com.smsindia.app.data.api.SupabaseApi;
+import com.smsindia.app.data.model.UserModel;
 
 import java.util.HashMap;
 import java.util.List;
@@ -37,8 +38,6 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class SpinFragment extends Fragment {
 
-    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private LuckyWheelView wheelView;
     private Button btnSpin;
@@ -60,7 +59,7 @@ public class SpinFragment extends Fragment {
 
         // Init Retrofit
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(SUPABASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
         supabaseApi = retrofit.create(SupabaseApi.class);
@@ -96,7 +95,7 @@ public class SpinFragment extends Fragment {
     private String getAuthHeader() {
         SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
         String token = authPrefs.getString("jwt", null);
-        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+        return token != null ? "Bearer " + token : "Bearer " + Constants.SUPABASE_ANON_KEY;
     }
 
     private void fetchUserData() {
@@ -105,7 +104,7 @@ public class SpinFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
+        supabaseApi.getUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -195,7 +194,7 @@ public class SpinFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
 
-        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, body)
+        supabaseApi.updateUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber, body)
             .enqueue(new Callback<Void>() {
                 @Override public void onResponse(Call<Void> c, Response<Void> r) {}
                 @Override public void onFailure(Call<Void> c, Throwable t) {}

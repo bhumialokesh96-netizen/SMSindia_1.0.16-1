@@ -24,9 +24,10 @@ import com.google.android.material.card.MaterialCardView;
 import com.google.gson.internal.LinkedTreeMap;
 import com.smsindia.app.LoginActivity;
 import com.smsindia.app.R;
-import com.smsindia.app.service.AppConfigModel;
-import com.smsindia.app.service.SupabaseApi;
-import com.smsindia.app.service.UserModel;
+import com.smsindia.app.config.Constants;
+import com.smsindia.app.data.model.AppConfigModel;
+import com.smsindia.app.data.api.SupabaseApi;
+import com.smsindia.app.data.model.UserModel;
 
 import java.util.HashMap;
 import java.util.List;
@@ -40,8 +41,6 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ProfileFragment extends Fragment {
 
-    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private TextView tvMobile, tvBalance, tvBankName, tvBankAc;
     private View layoutSavedBankView;
@@ -63,7 +62,7 @@ public class ProfileFragment extends Fragment {
 
         // Initialize Retrofit
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(SUPABASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
         supabaseApi = retrofit.create(SupabaseApi.class);
@@ -128,7 +127,7 @@ public class ProfileFragment extends Fragment {
     private String getAuthHeader() {
         SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
         String token = authPrefs.getString("jwt", null);
-        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+        return token != null ? "Bearer " + token : "Bearer " + Constants.SUPABASE_ANON_KEY;
     }
 
     // ==========================================
@@ -140,7 +139,7 @@ public class ProfileFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
 
-        supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq." + configKey)
+        supabaseApi.getConfig(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + configKey)
             .enqueue(new Callback<List<AppConfigModel>>() {
                 @Override
                 public void onResponse(Call<List<AppConfigModel>> call, Response<List<AppConfigModel>> response) {
@@ -211,7 +210,7 @@ public class ProfileFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
 
-        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
+        supabaseApi.getUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -283,7 +282,7 @@ public class ProfileFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
 
-        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, updateBody)
+        supabaseApi.updateUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber, updateBody)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
@@ -391,7 +390,7 @@ public class ProfileFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
 
-        supabaseApi.requestWithdrawal(SUPABASE_KEY, authHeader, req)
+        supabaseApi.requestWithdrawal(Constants.SUPABASE_ANON_KEY, authHeader, req)
             .enqueue(new Callback<Void>() {
                 @Override
                 public void onResponse(Call<Void> call, Response<Void> response) {
@@ -425,7 +424,7 @@ public class ProfileFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
 
-        supabaseApi.updateUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber, update)
+        supabaseApi.updateUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber, update)
             .enqueue(new Callback<Void>() {
                 @Override 
                 public void onResponse(Call<Void> c, Response<Void> r) { 
