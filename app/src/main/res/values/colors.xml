@@ -24,4 +24,122 @@
     <color name="sim_card_selected">#FFC107</color>
     <color name="sim_card_unselected">#E0E0E0</color>
     <color name="batch_success">#4CAF50</color>
+    
+    <!-- ===== Enhanced Color Palette ===== -->
+    
+    <!-- Primary Colors with Variants -->
+    <color name="primary_50">#FFF3E0</color>
+    <color name="primary_100">#FFE0B2</color>
+    <color name="primary_200">#FFCC80</color>
+    <color name="primary_300">#FFB74D</color>
+    <color name="primary_400">#FFA726</color>
+    <color name="primary_500">#FF9800</color>
+    <color name="primary_600">#FB8C00</color>
+    <color name="primary_700">#F57C00</color>
+    <color name="primary_800">#EF6C00</color>
+    <color name="primary_900">#E65100</color>
+    
+    <!-- Secondary Colors -->
+    <color name="secondary_50">#E8F5E9</color>
+    <color name="secondary_100">#C8E6C9</color>
+    <color name="secondary_200">#A5D6A7</color>
+    <color name="secondary_300">#81C784</color>
+    <color name="secondary_400">#66BB6A</color>
+    <color name="secondary_500">#4CAF50</color>
+    <color name="secondary_600">#43A047</color>
+    <color name="secondary_700">#388E3C</color>
+    <color name="secondary_800">#2E7D32</color>
+    <color name="secondary_900">#1B5E20</color>
+    
+    <!-- Accent Colors -->
+    <color name="accent_50">#E3F2FD</color>
+    <color name="accent_100">#BBDEFB</color>
+    <color name="accent_200">#90CAF9</color>
+    <color name="accent_300">#64B5F6</color>
+    <color name="accent_400">#42A5F5</color>
+    <color name="accent_500">#2196F3</color>
+    <color name="accent_600">#1E88E5</color>
+    <color name="accent_700">#1976D2</color>
+    <color name="accent_800">#1565C0</color>
+    <color name="accent_900">#0D47A1</color>
+    
+    <!-- Neutral/Gray Scale -->
+    <color name="gray_50">#FAFAFA</color>
+    <color name="gray_100">#F5F5F5</color>
+    <color name="gray_200">#EEEEEE</color>
+    <color name="gray_300">#E0E0E0</color>
+    <color name="gray_400">#BDBDBD</color>
+    <color name="gray_500">#9E9E9E</color>
+    <color name="gray_600">#757575</color>
+    <color name="gray_700">#616161</color>
+    <color name="gray_800">#424242</color>
+    <color name="gray_900">#212121</color>
+    
+    <!-- Black & White -->
+    <color name="black">#000000</color>
+    <color name="black_87">#DE000000</color>
+    <color name="black_54">#8A000000</color>
+    <color name="black_38">#61000000</color>
+    <color name="black_12">#1F000000</color>
+    <color name="white_100">#FFFFFF</color>
+    <color name="white_87">#DEFFFFFF</color>
+    <color name="white_54">#8AFFFFFF</color>
+    <color name="white_38">#61FFFFFF</color>
+    <color name="white_12">#1FFFFFFF</color>
+    
+    <!-- Semantic Colors -->
+    <color name="success">#4CAF50</color>
+    <color name="success_light">#81C784</color>
+    <color name="success_dark">#388E3C</color>
+    <color name="error">#F44336</color>
+    <color name="error_light">#E57373</color>
+    <color name="error_dark">#D32F2F</color>
+    <color name="warning">#FFC107</color>
+    <color name="warning_light">#FFD54F</color>
+    <color name="warning_dark">#FFA000</color>
+    <color name="info">#2196F3</color>
+    <color name="info_light">#64B5F6</color>
+    <color name="info_dark">#1976D2</color>
+    
+    <!-- Background Tints -->
+    <color name="bg_surface">#FFFFFF</color>
+    <color name="bg_surface_variant">#F5F5F5</color>
+    <color name="bg_overlay">#33000000</color>
+    <color name="bg_overlay_dark">#66000000</color>
+    
+    <!-- Button State Colors -->
+    <color name="button_primary">#FF9800</color>
+    <color name="button_primary_pressed">#F57C00</color>
+    <color name="button_primary_disabled">#FFCC80</color>
+    <color name="button_secondary">#4CAF50</color>
+    <color name="button_secondary_pressed">#388E3C</color>
+    <color name="button_secondary_disabled">#A5D6A7</color>
+    
+    <!-- Text Colors with Contrast -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="text_hint">#BDBDBD</color>
+    <color name="text_disabled">#E0E0E0</color>
+    <color name="text_on_primary">#FFFFFF</color>
+    <color name="text_on_secondary">#FFFFFF</color>
+    
+    <!-- Divider & Border -->
+    <color name="divider">#E0E0E0</color>
+    <color name="divider_dark">#BDBDBD</color>
+    <color name="border_light">#EEEEEE</color>
+    <color name="border_medium">#E0E0E0</color>
+    <color name="border_dark">#BDBDBD</color>
+    
+    <!-- Card & Surface -->
+    <color name="card_background">#FFFFFF</color>
+    <color name="card_border">#E0E0E0</color>
+    <color name="card_shadow">#1F000000</color>
+    
+    <!-- Gradient Colors -->
+    <color name="gradient_orange_start">#FFECB3</color>
+    <color name="gradient_orange_end">#FFC107</color>
+    <color name="gradient_green_start">#C8E6C9</color>
+    <color name="gradient_green_end">#4CAF50</color>
+    <color name="gradient_blue_start">#BBDEFB</color>
+    <color name="gradient_blue_end">#2196F3</color>
 </resources>

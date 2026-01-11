@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ===== Spacing & Padding ===== -->
+    
+    <!-- Extra Small Spacing -->
+    <dimen name="spacing_xs">4dp</dimen>
+    
+    <!-- Small Spacing -->
+    <dimen name="spacing_sm">8dp</dimen>
+    
+    <!-- Medium Spacing -->
+    <dimen name="spacing_md">12dp</dimen>
+    
+    <!-- Base Spacing -->
+    <dimen name="spacing_base">16dp</dimen>
+    
+    <!-- Large Spacing -->
+    <dimen name="spacing_lg">20dp</dimen>
+    
+    <!-- Extra Large Spacing -->
+    <dimen name="spacing_xl">24dp</dimen>
+    
+    <!-- 2X Extra Large Spacing -->
+    <dimen name="spacing_2xl">32dp</dimen>
+    
+    <!-- 3X Extra Large Spacing -->
+    <dimen name="spacing_3xl">40dp</dimen>
+    
+    <!-- ===== Corner Radius ===== -->
+    
+    <!-- Small Corner Radius -->
+    <dimen name="corner_radius_sm">8dp</dimen>
+    
+    <!-- Medium Corner Radius -->
+    <dimen name="corner_radius_md">12dp</dimen>
+    
+    <!-- Large Corner Radius -->
+    <dimen name="corner_radius_lg">16dp</dimen>
+    
+    <!-- Extra Large Corner Radius -->
+    <dimen name="corner_radius_xl">24dp</dimen>
+    
+    <!-- Full Corner Radius (for circular/pill shapes) -->
+    <dimen name="corner_radius_full">999dp</dimen>
+    
+    <!-- ===== Elevation ===== -->
+    
+    <!-- No Elevation -->
+    <dimen name="elevation_none">0dp</dimen>
+    
+    <!-- Small Elevation -->
+    <dimen name="elevation_sm">2dp</dimen>
+    
+    <!-- Medium Elevation -->
+    <dimen name="elevation_md">4dp</dimen>
+    
+    <!-- Large Elevation -->
+    <dimen name="elevation_lg">8dp</dimen>
+    
+    <!-- Extra Large Elevation -->
+    <dimen name="elevation_xl">12dp</dimen>
+    
+    <!-- ===== Component Sizes ===== -->
+    
+    <!-- Button Height -->
+    <dimen name="button_height">48dp</dimen>
+    <dimen name="button_height_large">56dp</dimen>
+    <dimen name="button_height_small">40dp</dimen>
+    
+    <!-- Input Field Height -->
+    <dimen name="input_height">56dp</dimen>
+    <dimen name="input_height_small">48dp</dimen>
+    
+    <!-- Icon Sizes -->
+    <dimen name="icon_size_xs">16dp</dimen>
+    <dimen name="icon_size_sm">20dp</dimen>
+    <dimen name="icon_size_md">24dp</dimen>
+    <dimen name="icon_size_lg">32dp</dimen>
+    <dimen name="icon_size_xl">48dp</dimen>
+    <dimen name="icon_size_2xl">64dp</dimen>
+    
+    <!-- Card Padding -->
+    <dimen name="card_padding">16dp</dimen>
+    <dimen name="card_padding_small">12dp</dimen>
+    <dimen name="card_padding_large">20dp</dimen>
+    
+    <!-- Dialog Dimensions -->
+    <dimen name="dialog_padding">24dp</dimen>
+    <dimen name="dialog_width">320dp</dimen>
+    <dimen name="dialog_max_width">480dp</dimen>
+    
+    <!-- ===== Text Sizes ===== -->
+    
+    <!-- Display Text -->
+    <dimen name="text_size_display">34sp</dimen>
+    
+    <!-- Headline Text -->
+    <dimen name="text_size_h1">32sp</dimen>
+    <dimen name="text_size_h2">28sp</dimen>
+    <dimen name="text_size_h3">24sp</dimen>
+    <dimen name="text_size_h4">20sp</dimen>
+    <dimen name="text_size_h5">18sp</dimen>
+    <dimen name="text_size_h6">16sp</dimen>
+    
+    <!-- Body Text -->
+    <dimen name="text_size_body1">16sp</dimen>
+    <dimen name="text_size_body2">14sp</dimen>
+    
+    <!-- Caption & Small Text -->
+    <dimen name="text_size_caption">12sp</dimen>
+    <dimen name="text_size_overline">10sp</dimen>
+    
+    <!-- Button Text -->
+    <dimen name="text_size_button">14sp</dimen>
+    
+    <!-- ===== Stroke/Border Width ===== -->
+    
+    <dimen name="stroke_width_thin">1dp</dimen>
+    <dimen name="stroke_width_medium">2dp</dimen>
+    <dimen name="stroke_width_thick">3dp</dimen>
+    
+    <!-- ===== Touch Target Size ===== -->
+    
+    <dimen name="touch_target_min">48dp</dimen>
+    
+    <!-- ===== Layout Margins ===== -->
+    
+    <dimen name="layout_margin_horizontal">16dp</dimen>
+    <dimen name="layout_margin_vertical">16dp</dimen>
+    
+    <!-- ===== Bottom Navigation ===== -->
+    
+    <dimen name="bottom_nav_height">56dp</dimen>
+    
+    <!-- ===== App Bar ===== -->
+    
+    <dimen name="app_bar_height">56dp</dimen>
+    <dimen name="app_bar_elevation">4dp</dimen>
+</resources>
