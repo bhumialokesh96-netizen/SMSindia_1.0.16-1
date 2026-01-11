@@ -204,8 +204,14 @@ public class ErrorHandler {
     
     /**
      * Check if error indicates user already exists
-     * NOTE: This method reads the error body. If getErrorMessage() was already called on this response,
-     * the error body will be empty. Use this method OR getErrorMessage(), not both on the same response.
+     * 
+     * <p><strong>IMPORTANT:</strong> This method reads the error body stream, which can only be read once.
+     * Do not call this method after calling {@link #getErrorMessage(Response)} on the same response object.
+     * Use this method OR getErrorMessage(), not both on the same response.</p>
+     * 
+     * @param response The failed API response
+     * @return true if error indicates user already exists, false otherwise
+     * @see #getErrorMessage(Response) for getting a user-friendly error message
      */
     public static boolean isUserAlreadyExistsError(Response<?> response) {
         String errorBody = readErrorBody(response);
@@ -222,8 +228,14 @@ public class ErrorHandler {
     
     /**
      * Check if error indicates invalid credentials
-     * NOTE: This method reads the error body. If getErrorMessage() was already called on this response,
-     * the error body will be empty. Use this method OR getErrorMessage(), not both on the same response.
+     * 
+     * <p><strong>IMPORTANT:</strong> This method reads the error body stream, which can only be read once.
+     * Do not call this method after calling {@link #getErrorMessage(Response)} on the same response object.
+     * Use this method OR getErrorMessage(), not both on the same response.</p>
+     * 
+     * @param response The failed API response
+     * @return true if error indicates invalid credentials, false otherwise
+     * @see #getErrorMessage(Response) for getting a user-friendly error message
      */
     public static boolean isInvalidCredentialsError(Response<?> response) {
         String errorBody = readErrorBody(response);
@@ -240,8 +252,14 @@ public class ErrorHandler {
     
     /**
      * Check if error indicates user not found
-     * NOTE: This method reads the error body. If getErrorMessage() was already called on this response,
-     * the error body will be empty. Use this method OR getErrorMessage(), not both on the same response.
+     * 
+     * <p><strong>IMPORTANT:</strong> This method reads the error body stream, which can only be read once.
+     * Do not call this method after calling {@link #getErrorMessage(Response)} on the same response object.
+     * Use this method OR getErrorMessage(), not both on the same response.</p>
+     * 
+     * @param response The failed API response
+     * @return true if error indicates user not found, false otherwise
+     * @see #getErrorMessage(Response) for getting a user-friendly error message
      */
     public static boolean isUserNotFoundError(Response<?> response) {
         String errorBody = readErrorBody(response);
