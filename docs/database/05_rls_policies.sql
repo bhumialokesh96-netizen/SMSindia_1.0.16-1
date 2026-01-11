@@ -29,7 +29,7 @@ CREATE POLICY "Users can view own profile"
 ON public.users
 FOR SELECT
 TO authenticated
-USING (auth.uid()::text = id::text);
+USING (auth.uid() = id);
 
 -- Allow anon users to create accounts (signup)
 CREATE POLICY "Anyone can create user"
@@ -43,8 +43,8 @@ CREATE POLICY "Users can update own profile"
 ON public.users
 FOR UPDATE
 TO authenticated
-USING (auth.uid()::text = id::text)
-WITH CHECK (auth.uid()::text = id::text);
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
 -- Service role can do everything (for admin operations)
 CREATE POLICY "Service role full access users"

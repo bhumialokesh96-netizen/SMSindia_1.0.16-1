@@ -1,5 +1,7 @@
 package com.smsindia.app.config;
 
+import com.smsindia.app.BuildConfig;
+
 /**
  * Central configuration constants for the SMS India application.
  * API keys and sensitive data should be loaded from BuildConfig.
