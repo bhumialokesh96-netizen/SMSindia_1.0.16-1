@@ -11,7 +11,7 @@
     <string name="timer_zero">00</string>
     <string name="timer_dash">--</string>
     <string name="service_stopped">Service Stopped</string>
-    <string name="batch_result_format">Done!\n%d Sent\n+₹%.2f</string>
+    <string name="batch_result_format" formatted="false">Done!\n%d Sent\n+₹%.2f</string>
     
     <!-- WebTaskActivity strings -->
     <string name="default_url">https://www.google.com</string>
