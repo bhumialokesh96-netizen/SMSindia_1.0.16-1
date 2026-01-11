@@ -33,13 +33,13 @@ public class LeaderboardEntry {
     
     public LeaderboardEntry() {}
     
+    private static final int MIN_PHONE_LENGTH = 4;
+    
     // Helper methods
     public String getMaskedPhone() {
         if (phone == null || phone.length() < MIN_PHONE_LENGTH) return "****";
         return phone.substring(0, 2) + "****" + phone.substring(phone.length() - 2);
     }
-    
-    private static final int MIN_PHONE_LENGTH = 4;
     
     public String getRankDisplay() {
         if (rank == 1) return "🥇";

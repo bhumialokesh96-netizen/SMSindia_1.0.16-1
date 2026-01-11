@@ -7,7 +7,7 @@
     android:layout_marginVertical="4dp"
     app:cardCornerRadius="12dp"
     app:cardElevation="2dp"
-    app:cardBackgroundColor="#FFFFFF">
+    app:cardBackgroundColor="@color/white_100">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -63,7 +63,7 @@
             android:text="👑 Gold"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:textColor="#FFD700"
+            android:textColor="@color/tier_gold"
             android:paddingHorizontal="12dp"
             android:paddingVertical="6dp"
             android:background="@drawable/bg_orange_border"/>

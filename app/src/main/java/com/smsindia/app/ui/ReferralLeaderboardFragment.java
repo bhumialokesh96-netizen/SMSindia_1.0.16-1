@@ -193,7 +193,9 @@ public class ReferralLeaderboardFragment extends Fragment {
                 holder.itemView.setBackgroundResource(R.drawable.bg_gradient_gold);
             } else {
                 // Others - default white background
-                holder.itemView.setBackgroundColor(Color.WHITE);
+                holder.itemView.setBackgroundColor(
+                    holder.itemView.getContext().getResources().getColor(R.color.white_100)
+                );
             }
         }
 

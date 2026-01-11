@@ -118,6 +118,11 @@
     <!-- Text Colors with Contrast -->
     <color name="text_primary">#212121</color>
     <color name="text_secondary">#757575</color>
+    
+    <!-- Tier/Badge Colors -->
+    <color name="tier_gold">#FFD700</color>
+    <color name="tier_silver">#C0C0C0</color>
+    <color name="tier_bronze">#CD7F32</color>
     <color name="text_hint">#BDBDBD</color>
     <color name="text_disabled">#E0E0E0</color>
     <color name="text_on_primary">#FFFFFF</color>
