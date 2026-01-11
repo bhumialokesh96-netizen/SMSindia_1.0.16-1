@@ -25,7 +25,7 @@
             android:gravity="center"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#1B5E20"
+            android:textColor="@color/secondary_900"
             android:background="@drawable/bg_orange_border"/>
 
         <!-- User Info -->
@@ -43,7 +43,7 @@
                 android:text="98****56"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#212121"/>
+                android:textColor="@color/gray_900"/>
 
             <TextView
                 android:id="@+id/tv_leaderboard_referrals"
@@ -51,7 +51,7 @@
                 android:layout_height="wrap_content"
                 android:text="123 referrals"
                 android:textSize="13sp"
-                android:textColor="#757575"
+                android:textColor="@color/gray_600"
                 android:layout_marginTop="2dp"/>
         </LinearLayout>
 

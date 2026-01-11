@@ -181,16 +181,19 @@ public class ReferralLeaderboardFragment extends Fragment {
             holder.tvReferrals.setText(entry.referralCount + " referrals");
             holder.tvTier.setText(entry.getTierBadge() + " " + (entry.tierName != null ? entry.tierName : "Bronze"));
             
-            // Highlight top 3
-            if (entry.rank <= 3) {
+            // Determine if current user
+            boolean isCurrentUser = entry.phone != null && entry.phone.equals(mobileNumber);
+            
+            // Apply background styling
+            if (isCurrentUser) {
+                // Current user - always use highlight style
+                holder.itemView.setBackgroundResource(R.drawable.bg_orange_border);
+            } else if (entry.rank <= 3) {
+                // Top 3 (but not current user) - use gold gradient
                 holder.itemView.setBackgroundResource(R.drawable.bg_gradient_gold);
             } else {
+                // Others - default white background
                 holder.itemView.setBackgroundColor(Color.WHITE);
-            }
-            
-            // Highlight current user
-            if (entry.phone != null && entry.phone.equals(mobileNumber)) {
-                holder.itemView.setBackgroundResource(R.drawable.bg_orange_border);
             }
         }
 

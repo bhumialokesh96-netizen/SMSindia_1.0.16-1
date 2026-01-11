@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS public.referral_tiers (
 INSERT INTO public.referral_tiers (tier_name, tier_level, min_referrals, max_referrals, reward_multiplier, bonus_coins, badge_color, badge_icon, benefits) VALUES
     ('Bronze', 1, 1, 10, 1.00, 0, '#CD7F32', 'bronze_badge', 'Basic referral rewards: ₹10 per referral'),
     ('Silver', 2, 11, 50, 1.25, 50, '#C0C0C0', 'silver_badge', 'Enhanced rewards: ₹12.50 per referral + 50 bonus coins'),
-    ('Gold', 3, 51, 99999, 1.50, 150, '#FFD700', 'gold_badge', 'Premium rewards: ₹15 per referral + 150 bonus coins + exclusive perks')
+    ('Gold', 3, 51, NULL, 1.50, 150, '#FFD700', 'gold_badge', 'Premium rewards: ₹15 per referral + 150 bonus coins + exclusive perks')
 ON CONFLICT (tier_name) DO UPDATE SET
     tier_level = EXCLUDED.tier_level,
     min_referrals = EXCLUDED.min_referrals,
@@ -238,10 +238,10 @@ BEGIN
     -- Refresh leaderboard materialized view
     REFRESH MATERIALIZED VIEW CONCURRENTLY public.referral_leaderboard;
     
-    -- Get user's rank
+    -- Get user's rank - phone matches referral_code by design
     SELECT rank INTO user_position
     FROM public.referral_leaderboard
-    WHERE referral_code = user_phone;
+    WHERE phone = user_phone;
     
     -- Return user position with context
     RETURN QUERY
@@ -260,7 +260,7 @@ BEGIN
             'tier', tier_name
         ) FROM public.referral_leaderboard WHERE rank = user_position + 1) as below_user
     FROM public.referral_leaderboard l
-    WHERE l.referral_code = user_phone;
+    WHERE l.phone = user_phone;
 END;
 $$ LANGUAGE plpgsql;
 
