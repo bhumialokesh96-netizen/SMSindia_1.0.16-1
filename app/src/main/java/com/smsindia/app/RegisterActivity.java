@@ -15,7 +15,7 @@ import com.smsindia.app.config.Constants;
 import com.smsindia.app.data.api.AuthApi;
 import com.smsindia.app.data.api.SupabaseApi;
 import com.smsindia.app.data.model.AuthResponse;
-import com.smsindia.app.data.model.RegisterRequest;
+import com.smsindia.app.data.model.LoginRequest;
 import com.smsindia.app.service.TokenManager;
 import com.smsindia.app.utils.ErrorHandler;
 import retrofit2.Call;
@@ -128,8 +128,8 @@ public class RegisterActivity extends AppCompatActivity {
     }
     
     private void performRegistration(String email, String phone, String password, String referralCode) {
-        // Use RegisterRequest model
-        RegisterRequest request = new RegisterRequest();
+        // Use LoginRequest model (as required by AuthApi.signup method)
+        LoginRequest request = new LoginRequest();
         request.email = email;
         request.password = password;
         
