@@ -201,6 +201,14 @@ TELEGRAM_TO               # Telegram chat ID
 
 ## 📊 Version History
 
+- **v1.0.18** - Invalid Request Issue Integration 🔧
+  - Centralized error handling for all API requests
+  - User-friendly error messages for authentication failures
+  - Smart error parsing from Supabase API responses
+  - Improved error handling in Login, Register, and Profile screens
+  - Better debugging with detailed error logging
+  - See [Invalid Request Integration Guide](docs/INVALID_REQUEST_INTEGRATION.md) for details
+
 - **v1.0.17** - Referral System Enhancement 🎯
   - Referral Leaderboard: Global rankings with top 50 referrers
   - Tiered Rewards: Bronze (1-10), Silver (11-50), Gold (51+) tiers
