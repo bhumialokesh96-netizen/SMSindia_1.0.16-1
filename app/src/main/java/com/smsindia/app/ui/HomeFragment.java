@@ -30,6 +30,7 @@ import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+import com.google.gson.internal.LinkedTreeMap;
 
 import com.smsindia.app.R;
 import com.smsindia.app.service.AdRewardResponse;

@@ -114,13 +114,13 @@ public class WithdrawalHistoryActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             WithdrawModel model = mList.get(position);
             
-            holder.amount.setText(String.format("₹ %.2f", model.amount));
+            holder.amount.setText(String.format("₹ %.2f", model.getAmount()));
             
             // Parse Date String from Supabase
-            if(model.createdAt != null) {
+            if(model.getCreatedAt() != null) {
                 try {
                     // Fix slight format issues if milliseconds are present
-                    String cleanDate = model.createdAt.split("\\.")[0]; 
+                    String cleanDate = model.getCreatedAt().split("\\.")[0]; 
                     Date date = inputFormat.parse(cleanDate);
                     if (date != null) {
                         holder.date.setText(outputFormat.format(date));
@@ -131,12 +131,12 @@ public class WithdrawalHistoryActivity extends AppCompatActivity {
             }
 
             // STATUS LOGIC (Reviewing -> Processing -> Completed)
-            holder.status.setText(model.status);
+            holder.status.setText(model.getStatus());
 
             int color;
-            if ("Completed".equalsIgnoreCase(model.status)) {
+            if ("Completed".equalsIgnoreCase(model.getStatus())) {
                 color = Color.parseColor("#4CAF50"); // Green
-            } else if ("Processing".equalsIgnoreCase(model.status)) {
+            } else if ("Processing".equalsIgnoreCase(model.getStatus())) {
                 color = Color.parseColor("#2196F3"); // Blue
             } else {
                 color = Color.parseColor("#FF9800"); // Orange (Reviewing)
