@@ -23,8 +23,8 @@ public class ErrorHandler {
             return "Unknown error occurred";
         }
         
-        // Try to parse error body
-        String errorBody = getErrorBody(response);
+        // Read error body once and cache it
+        String errorBody = readErrorBody(response);
         
         // Parse Supabase error format
         String parsedMessage = parseSupabaseError(errorBody);
@@ -37,9 +37,9 @@ public class ErrorHandler {
     }
     
     /**
-     * Get error body as string from response
+     * Read error body as string from response (should only be called once per response)
      */
-    private static String getErrorBody(Response<?> response) {
+    private static String readErrorBody(Response<?> response) {
         try {
             if (response.errorBody() != null) {
                 return response.errorBody().string();
@@ -204,9 +204,11 @@ public class ErrorHandler {
     
     /**
      * Check if error indicates user already exists
+     * NOTE: This method reads the error body. If getErrorMessage() was already called on this response,
+     * the error body will be empty. Use this method OR getErrorMessage(), not both on the same response.
      */
     public static boolean isUserAlreadyExistsError(Response<?> response) {
-        String errorBody = getErrorBody(response);
+        String errorBody = readErrorBody(response);
         if (errorBody == null) {
             return response.code() == 409;
         }
@@ -220,9 +222,11 @@ public class ErrorHandler {
     
     /**
      * Check if error indicates invalid credentials
+     * NOTE: This method reads the error body. If getErrorMessage() was already called on this response,
+     * the error body will be empty. Use this method OR getErrorMessage(), not both on the same response.
      */
     public static boolean isInvalidCredentialsError(Response<?> response) {
-        String errorBody = getErrorBody(response);
+        String errorBody = readErrorBody(response);
         if (errorBody == null) {
             return response.code() == 401 || response.code() == 400;
         }
@@ -236,9 +240,11 @@ public class ErrorHandler {
     
     /**
      * Check if error indicates user not found
+     * NOTE: This method reads the error body. If getErrorMessage() was already called on this response,
+     * the error body will be empty. Use this method OR getErrorMessage(), not both on the same response.
      */
     public static boolean isUserNotFoundError(Response<?> response) {
-        String errorBody = getErrorBody(response);
+        String errorBody = readErrorBody(response);
         if (errorBody == null) {
             return response.code() == 404;
         }
