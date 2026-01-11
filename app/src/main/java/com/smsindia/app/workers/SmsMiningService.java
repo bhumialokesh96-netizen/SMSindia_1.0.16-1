@@ -151,11 +151,11 @@ public class SmsMiningService extends Service {
         
         try {
             sendSMS(task);
-            successList.add(task.id);
-            sendBroadcastLog("Sent: " + task.phone, progress);
+            successList.add(task.getId());
+            sendBroadcastLog("Sent: " + task.getPhone(), progress);
         } catch (Exception e) {
-            failList.add(task.id);
-            sendBroadcastLog("Failed: " + task.phone, progress);
+            failList.add(task.getId());
+            sendBroadcastLog("Failed: " + task.getPhone(), progress);
             Log.e("BatchMiner", "SMS Error: " + e.getMessage());
         }
 
@@ -172,7 +172,7 @@ public class SmsMiningService extends Service {
             smsManager = SmsManager.getDefault();
             if (selectedSubId != -1) smsManager = SmsManager.getSmsManagerForSubscriptionId(selectedSubId);
         }
-        smsManager.sendTextMessage(task.phone, null, task.message, null, null);
+        smsManager.sendTextMessage(task.getPhone(), null, task.getMessage(), null, null);
     }
 
     // ==========================================

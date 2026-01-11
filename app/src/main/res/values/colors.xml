@@ -17,4 +17,11 @@
     <color name="colorPrimary">#FF6F00</color>
     <color name="colorPrimaryDark">#E65100</color>
     <color name="colorAccent">#2196F3</color>
+    
+    <!-- TaskFragment colors -->
+    <color name="button_stop_text">#FF0000</color>
+    <color name="button_start_text">#5D4037</color>
+    <color name="sim_card_selected">#FFC107</color>
+    <color name="sim_card_unselected">#E0E0E0</color>
+    <color name="batch_success">#4CAF50</color>
 </resources>
