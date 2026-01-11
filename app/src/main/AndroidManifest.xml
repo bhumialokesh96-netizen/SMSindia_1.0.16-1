@@ -94,6 +94,13 @@
             android:theme="@style/Theme.SMSIndia.NoActionBar"
             android:screenOrientation="portrait" />
 
+        <!-- REGISTER ACTIVITY -->
+        <activity
+            android:name=".RegisterActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SMSIndia.NoActionBar"
+            android:screenOrientation="portrait" />
+
         <!-- SUB ACTIVITIES -->
         <activity
             android:name=".ui.DeliveryLogActivity"
