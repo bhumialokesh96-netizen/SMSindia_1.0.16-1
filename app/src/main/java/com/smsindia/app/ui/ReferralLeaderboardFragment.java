@@ -12,6 +12,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -194,7 +195,7 @@ public class ReferralLeaderboardFragment extends Fragment {
             } else {
                 // Others - default white background
                 holder.itemView.setBackgroundColor(
-                    holder.itemView.getContext().getResources().getColor(R.color.white_100)
+                    ContextCompat.getColor(holder.itemView.getContext(), R.color.white_100)
                 );
             }
         }

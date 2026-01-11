@@ -178,7 +178,7 @@
                 android:text="🏅 Bronze Tier"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="#CD7F32"
+                android:textColor="@color/tier_bronze"
                 android:gravity="center"/>
             
             <TextView
@@ -187,7 +187,7 @@
                 android:layout_height="wrap_content"
                 android:text="🎯 6 more referrals to next tier"
                 android:textSize="13sp"
-                android:textColor="#757575"
+                android:textColor="@color/gray_600"
                 android:gravity="center"
                 android:layout_marginTop="4dp"
                 android:visibility="visible"/>

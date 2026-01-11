@@ -238,7 +238,8 @@ BEGIN
     -- Refresh leaderboard materialized view
     REFRESH MATERIALIZED VIEW CONCURRENTLY public.referral_leaderboard;
     
-    -- Get user's rank - phone matches referral_code by design
+    -- Get user's rank
+    -- Note: By design, phone field is used as referral_code in users table
     SELECT rank INTO user_position
     FROM public.referral_leaderboard
     WHERE phone = user_phone;
