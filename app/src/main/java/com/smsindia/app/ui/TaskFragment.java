@@ -8,13 +8,14 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.os.Handler;
+import android.os.Looper;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -40,6 +41,7 @@ import java.util.Locale;
 
 public class TaskFragment extends Fragment {
 
+    private static final String TAG = "TaskFragment";
     private static final int PERMISSION_REQ_CODE = 101;
 
     // UI Elements
@@ -57,6 +59,12 @@ public class TaskFragment extends Fragment {
     private boolean isAutoMode = true; 
     private boolean isServiceRunning = false;
     private String userIdUUID; // Using UUID for Supabase
+    
+    // Memory leak fix - keep reference to cancel timer
+    private CountDownTimer currentTimer;
+    
+    // Handler for UI updates from BroadcastReceiver
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     // Receiver to handle updates from Service
     private final BroadcastReceiver updateReceiver = new BroadcastReceiver() {
@@ -68,21 +76,38 @@ public class TaskFragment extends Fragment {
                 String log = intent.getStringExtra("log");
                 int progress = intent.getIntExtra("progress", 0);
 
-                if (log != null) {
-                    logUI(log);
-                    tvStatus.setText(log);
-                    if (log.equals("Service Stopped")) setUIStoppedState();
-                }
-                progressTimer.setProgress(progress);
-                if (progress > 0 && progress < 100) tvTimer.setText(progress + "%");
-                else tvTimer.setText("--");
+                // Post UI updates to main thread
+                mainHandler.post(() -> {
+                    if (log != null) {
+                        logUI(log);
+                        if (tvStatus != null) {
+                            tvStatus.setText(log);
+                        }
+                        if (log.equals(getString(R.string.service_stopped))) {
+                            setUIStoppedState();
+                        }
+                    }
+                    if (progressTimer != null) {
+                        progressTimer.setProgress(progress);
+                    }
+                    if (tvTimer != null) {
+                        if (progress > 0 && progress < 100) {
+                            tvTimer.setText(progress + "%");
+                        } else {
+                            tvTimer.setText(getString(R.string.timer_dash));
+                        }
+                    }
+                });
             }
             else if (SmsMiningService.ACTION_BATCH_COMPLETE.equals(action)) {
-                setUIStoppedState();
-                // ✅ Get stats passed from Service
                 int success = intent.getIntExtra("successCount", 0);
                 double earned = intent.getDoubleExtra("earned", 0.0);
-                showSyncDialog(success, earned); 
+                
+                // Post UI updates to main thread
+                mainHandler.post(() -> {
+                    setUIStoppedState();
+                    showSyncDialog(success, earned);
+                });
             }
         }
     };
@@ -103,18 +128,38 @@ public class TaskFragment extends Fragment {
         switchAuto = v.findViewById(R.id.switch_auto_mode);
         btnAction = v.findViewById(R.id.btn_action_main);
 
-        SharedPreferences prefs = requireActivity().getSharedPreferences("SMSINDIA_USER", 0);
-        // CRITICAL: Fetching the UUID saved in LoginActivity
-        userIdUUID = prefs.getString("userId", "");
+        // Null check for getActivity()
+        if (getActivity() != null) {
+            SharedPreferences prefs = getActivity().getSharedPreferences("SMSINDIA_USER", 0);
+            userIdUUID = prefs.getString("userId", "");
+        } else {
+            Log.e(TAG, "Activity is null in onCreateView");
+        }
 
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(requireActivity(), new String[]{Manifest.permission.SEND_SMS, Manifest.permission.READ_PHONE_STATE}, PERMISSION_REQ_CODE);
+            requestPermissions(new String[]{Manifest.permission.SEND_SMS, Manifest.permission.READ_PHONE_STATE}, PERMISSION_REQ_CODE);
         } else {
             loadSimCards();
         }
 
         setupListeners();
         return v;
+    }
+    
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQ_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Permissions granted");
+                loadSimCards();
+            } else {
+                Log.w(TAG, "Permissions denied");
+                if (getContext() != null) {
+                    Toast.makeText(getContext(), "Permissions required for app to function", Toast.LENGTH_LONG).show();
+                }
+            }
+        }
     }
 
     private void setupListeners() {
@@ -129,177 +174,266 @@ public class TaskFragment extends Fragment {
 
     private void startService() {
         if (selectedSubId == -1) {
-            Toast.makeText(getContext(), "Select a SIM Card", Toast.LENGTH_SHORT).show();
+            if (getContext() != null) {
+                Toast.makeText(getContext(), R.string.select_sim_card, Toast.LENGTH_SHORT).show();
+            }
             return;
         }
-        if (userIdUUID.isEmpty()) {
-            Toast.makeText(getContext(), "Session Expired. Please Relogin.", Toast.LENGTH_LONG).show();
+        if (userIdUUID == null || userIdUUID.isEmpty()) {
+            if (getContext() != null) {
+                Toast.makeText(getContext(), R.string.session_expired, Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
+        // Null check for getActivity()
+        if (getActivity() == null) {
+            Log.e(TAG, "Cannot start service: Activity is null");
             return;
         }
 
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
         serviceIntent.putExtra("subId", selectedSubId);
-        serviceIntent.putExtra("userId", userIdUUID); // Passing UUID to Service
+        serviceIntent.putExtra("userId", userIdUUID);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            requireActivity().startForegroundService(serviceIntent);
+            getActivity().startForegroundService(serviceIntent);
         } else {
-            requireActivity().startService(serviceIntent);
+            getActivity().startService(serviceIntent);
         }
 
         isServiceRunning = true;
-        btnAction.setText("STOP BATCH");
-        btnAction.setTextColor(Color.RED);
-        tvStatus.setText("Starting Batch of 10...");
+        btnAction.setText(R.string.stop_batch);
+        btnAction.setTextColor(ContextCompat.getColor(requireContext(), R.color.button_stop_text));
+        tvStatus.setText(R.string.starting_batch);
         progressTimer.setIndeterminate(false);
         progressTimer.setProgress(0);
     }
 
     private void stopService() {
+        // Null check for getActivity()
+        if (getActivity() == null) {
+            Log.e(TAG, "Cannot stop service: Activity is null");
+            return;
+        }
+        
         Intent serviceIntent = new Intent(getActivity(), SmsMiningService.class);
         serviceIntent.setAction("STOP_SERVICE");
-        requireActivity().startService(serviceIntent);
+        getActivity().startService(serviceIntent);
         setUIStoppedState();
     }
 
     private void setUIStoppedState() {
         isServiceRunning = false;
-        btnAction.setText("START MINING (10 SMS)");
-        btnAction.setTextColor(Color.parseColor("#5D4037"));
-        tvTimer.setText("00");
+        btnAction.setText(R.string.start_mining);
+        btnAction.setTextColor(ContextCompat.getColor(requireContext(), R.color.button_start_text));
+        tvTimer.setText(R.string.timer_zero);
         progressTimer.setIndeterminate(false);
         progressTimer.setProgress(0);
     }
 
-    // 🎨 CUSTOM DIALOG LOGIC
     private void showSyncDialog(int successCount, double earnedAmount) {
-        if (getActivity() == null) return;
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-        LayoutInflater inflater = requireActivity().getLayoutInflater();
-        View dialogView = inflater.inflate(R.layout.dialog_sync_timer, null);
-        builder.setView(dialogView);
-        builder.setCancelable(false);
-
-        // Find Views
-        TextView tvTimer = dialogView.findViewById(R.id.dialog_tv_timer);
-        android.widget.ProgressBar progressBar = dialogView.findViewById(R.id.dialog_progress_bar);
-        
-        AlertDialog dialog = builder.create();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        // Null check for getActivity()
+        if (getActivity() == null || !isAdded()) {
+            Log.e(TAG, "Cannot show dialog: Activity is null or fragment not added");
+            return;
         }
-        dialog.show();
 
-        // Block Back Button
-        dialog.setOnKeyListener((dialogInterface, keyCode, event) -> keyCode == KeyEvent.KEYCODE_BACK);
+        try {
+            AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+            LayoutInflater inflater = getActivity().getLayoutInflater();
+            View dialogView = inflater.inflate(R.layout.dialog_sync_timer, null);
+            builder.setView(dialogView);
+            builder.setCancelable(false);
 
-        // Start 60s Cooldown Timer
-        new CountDownTimer(60000, 1000) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                if (dialog.isShowing()) {
-                    int secondsLeft = (int) (millisUntilFinished / 1000);
-                    tvTimer.setText(String.valueOf(secondsLeft));
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        progressBar.setProgress(secondsLeft, true);
-                    } else {
-                        progressBar.setProgress(secondsLeft);
+            // Find Views
+            TextView tvTimer = dialogView.findViewById(R.id.dialog_tv_timer);
+            android.widget.ProgressBar progressBar = dialogView.findViewById(R.id.dialog_progress_bar);
+            
+            AlertDialog dialog = builder.create();
+            if (dialog.getWindow() != null) {
+                dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            }
+            dialog.show();
+
+            // Block Back Button
+            dialog.setOnKeyListener((dialogInterface, keyCode, event) -> keyCode == KeyEvent.KEYCODE_BACK);
+
+            // Cancel previous timer if exists
+            if (currentTimer != null) {
+                currentTimer.cancel();
+            }
+
+            // Start 60s Cooldown Timer
+            currentTimer = new CountDownTimer(60000, 1000) {
+                @Override
+                public void onTick(long millisUntilFinished) {
+                    if (dialog.isShowing() && isAdded()) {
+                        int secondsLeft = (int) (millisUntilFinished / 1000);
+                        tvTimer.setText(String.valueOf(secondsLeft));
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            progressBar.setProgress(secondsLeft, true);
+                        } else {
+                            progressBar.setProgress(secondsLeft);
+                        }
                     }
                 }
-            }
 
-            @Override
-            public void onFinish() {
-                if (dialog.isShowing()) {
-                    // 1. Attempt to hide the static "seconds" label if strictly defined in layout structure
-                    try {
-                        ViewGroup parentLayout = (ViewGroup) tvTimer.getParent();
-                        if (parentLayout.getChildCount() > 1) {
-                            parentLayout.getChildAt(1).setVisibility(View.GONE); 
+                @Override
+                public void onFinish() {
+                    if (dialog.isShowing() && isAdded()) {
+                        try {
+                            ViewGroup parentLayout = (ViewGroup) tvTimer.getParent();
+                            if (parentLayout != null && parentLayout.getChildCount() > 1) {
+                                parentLayout.getChildAt(1).setVisibility(View.GONE); 
+                            }
+                        } catch (Exception e) {
+                            Log.w(TAG, "Error hiding label", e);
                         }
-                    } catch (Exception e) { /* Ignore layout mismatches */ }
 
-                    // 2. Update the Big Text with Result
-                    tvTimer.setTextSize(18); 
-                    tvTimer.setText(String.format(Locale.US, "Done!\n%d Sent\n+₹%.2f", successCount, earnedAmount));
-                    tvTimer.setTextColor(Color.parseColor("#4CAF50")); // Green Success
-                    
-                    progressBar.setProgress(0);
-                    
-                    // 3. Auto-Close Dialog
-                    new Handler().postDelayed(() -> {
-                        if (dialog.isShowing()) dialog.dismiss();
-                        tvStatus.setText("Batch Complete. Ready for next.");
+                        tvTimer.setTextSize(18); 
+                        tvTimer.setText(String.format(Locale.US, getString(R.string.batch_result_format), successCount, earnedAmount));
+                        tvTimer.setTextColor(ContextCompat.getColor(requireContext(), R.color.batch_success));
                         
-                        // Auto-Restart if mode is enabled
-                        if(isAutoMode && successCount > 0) {
-                            startService();
-                        }
-                    }, 4000);
+                        progressBar.setProgress(0);
+                        
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            if (dialog.isShowing()) {
+                                dialog.dismiss();
+                            }
+                            if (tvStatus != null) {
+                                tvStatus.setText(R.string.batch_complete);
+                            }
+                            
+                            if (isAutoMode && successCount > 0) {
+                                startService();
+                            }
+                        }, 4000);
+                    }
+                    currentTimer = null;
                 }
-            }
-        }.start();
+            };
+            currentTimer.start();
+        } catch (Exception e) {
+            Log.e(TAG, "Error showing sync dialog", e);
+        }
     }
 
     private void loadSimCards() {
-        SubscriptionManager sm = (SubscriptionManager) requireContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
-        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) return;
+        if (getContext() == null) {
+            Log.e(TAG, "Cannot load SIM cards: Context is null");
+            return;
+        }
+        
+        SubscriptionManager sm = (SubscriptionManager) getContext().getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE);
+        if (sm == null) {
+            Log.e(TAG, "SubscriptionManager is null");
+            return;
+        }
+        
+        if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "READ_PHONE_STATE permission not granted");
+            return;
+        }
 
-        List<SubscriptionInfo> subs = sm.getActiveSubscriptionInfoList();
-        if (subs != null && !subs.isEmpty()) {
-            SubscriptionInfo info1 = subs.get(0);
-            subId1 = info1.getSubscriptionId();
-            tvSim1Name.setText(info1.getCarrierName());
-            selectSim(1);
+        try {
+            List<SubscriptionInfo> subs = sm.getActiveSubscriptionInfoList();
+            if (subs != null && !subs.isEmpty()) {
+                SubscriptionInfo info1 = subs.get(0);
+                subId1 = info1.getSubscriptionId();
+                tvSim1Name.setText(info1.getCarrierName());
+                selectSim(1);
 
-            if (subs.size() > 1) {
-                SubscriptionInfo info2 = subs.get(1);
-                subId2 = info2.getSubscriptionId();
-                tvSim2Name.setText(info2.getCarrierName());
+                if (subs.size() > 1) {
+                    SubscriptionInfo info2 = subs.get(1);
+                    subId2 = info2.getSubscriptionId();
+                    tvSim2Name.setText(info2.getCarrierName());
+                } else {
+                    cardSim2.setAlpha(0.5f);
+                    cardSim2.setEnabled(false);
+                }
             } else {
-                cardSim2.setAlpha(0.5f);
-                cardSim2.setEnabled(false);
+                Log.w(TAG, "No active SIM cards found");
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading SIM cards", e);
         }
     }
 
     private void selectSim(int index) {
-        int gold = Color.parseColor("#FFC107");
-        int grey = Color.parseColor("#E0E0E0");
+        int gold = ContextCompat.getColor(requireContext(), R.color.sim_card_selected);
+        int grey = ContextCompat.getColor(requireContext(), R.color.sim_card_unselected);
         if (index == 1) {
             selectedSubId = subId1;
-            cardSim1.setStrokeColor(gold); cardSim1.setStrokeWidth(6);
-            cardSim2.setStrokeColor(grey); cardSim2.setStrokeWidth(2);
+            cardSim1.setStrokeColor(gold); 
+            cardSim1.setStrokeWidth(6);
+            cardSim2.setStrokeColor(grey); 
+            cardSim2.setStrokeWidth(2);
         } else {
             selectedSubId = subId2;
-            cardSim2.setStrokeColor(gold); cardSim2.setStrokeWidth(6);
-            cardSim1.setStrokeColor(grey); cardSim1.setStrokeWidth(2);
+            cardSim2.setStrokeColor(gold); 
+            cardSim2.setStrokeWidth(6);
+            cardSim1.setStrokeColor(grey); 
+            cardSim1.setStrokeWidth(2);
         }
     }
 
     private void logUI(String msg) {
-        String prev = tvLogs.getText().toString();
-        if(prev.length() > 500) prev = prev.substring(0, 500) + "...";
-        tvLogs.setText("> " + msg + "\n" + prev);
+        if (tvLogs == null) {
+            return;
+        }
+        try {
+            String prev = tvLogs.getText().toString();
+            if (prev.length() > 500) {
+                prev = prev.substring(0, 500) + "...";
+            }
+            tvLogs.setText("> " + msg + "\n" + prev);
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating logs", e);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(SmsMiningService.ACTION_UPDATE_UI);
-        filter.addAction(SmsMiningService.ACTION_BATCH_COMPLETE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requireActivity().registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED);
-        } else {
-            requireActivity().registerReceiver(updateReceiver, filter);
+        if (getActivity() == null) {
+            Log.e(TAG, "Activity is null in onResume");
+            return;
+        }
+        
+        try {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(SmsMiningService.ACTION_UPDATE_UI);
+            filter.addAction(SmsMiningService.ACTION_BATCH_COMPLETE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getActivity().registerReceiver(updateReceiver, filter, Context.RECEIVER_EXPORTED);
+            } else {
+                getActivity().registerReceiver(updateReceiver, filter);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error registering receiver", e);
         }
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        try { requireActivity().unregisterReceiver(updateReceiver); } catch (Exception e) {}
+        if (getActivity() != null) {
+            try {
+                getActivity().unregisterReceiver(updateReceiver);
+            } catch (Exception e) {
+                Log.w(TAG, "Error unregistering receiver", e);
+            }
+        }
+    }
+    
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // Cancel timer to prevent memory leak
+        if (currentTimer != null) {
+            currentTimer.cancel();
+            currentTimer = null;
+        }
     }
 }

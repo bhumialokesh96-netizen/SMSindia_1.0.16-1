@@ -1,6 +1,5 @@
 package com.smsindia.app.service;
 
-import com.google.gson.internal.LinkedTreeMap;
 import java.util.List;
 import java.util.Map;
 import retrofit2.Call;
@@ -115,7 +114,7 @@ public interface SupabaseApi {
     );
 
     @POST("/rest/v1/rpc/watch_ad_reward")
-    Call<LinkedTreeMap<String, Object>> watchAdReward(
+    Call<AdRewardResponse> watchAdReward(
         @Header("apikey") String apiKey,
         @Header("Authorization") String auth,
         @Body Map<String, Object> body

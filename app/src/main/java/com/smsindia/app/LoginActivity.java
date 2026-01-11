@@ -157,11 +157,20 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void completeLogin(AuthResponse authResponse, String phone) {
+        // Check if response is valid
+        if (authResponse == null || !authResponse.isValid()) {
+            Toast.makeText(LoginActivity.this, "Invalid login response", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
         // Save token
-        tokenManager.saveToken("Bearer " + authResponse.token);
+        String token = authResponse.getToken();
+        if (token != null) {
+            tokenManager.saveToken("Bearer " + token);
+        }
         
         // ✅ CRITICAL: Save user info to SMSINDIA_USER SharedPreferences
-        saveUserInfo(authResponse.user, phone);
+        saveUserInfo(authResponse.getUser(), phone);
         
         // Update device ID in database
         updateDeviceId(phone);
@@ -215,13 +224,24 @@ public class LoginActivity extends AppCompatActivity {
                 
                 if (response.isSuccessful() && response.body() != null) {
                     AuthResponse authResponse = response.body();
-                    tokenManager.saveToken("Bearer " + authResponse.token);
+                    
+                    // Validate response
+                    if (!authResponse.isValid()) {
+                        Toast.makeText(LoginActivity.this, "Invalid signup response", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    
+                    String token = authResponse.getToken();
+                    if (token != null) {
+                        tokenManager.saveToken("Bearer " + token);
+                    }
                     
                     // ✅ CRITICAL: Save user info immediately
-                    saveUserInfo(authResponse.user, phone);
+                    saveUserInfo(authResponse.getUser(), phone);
                     
                     // Create user profile
-                    createUserProfile(phone, password, authResponse.user != null ? authResponse.user.id : null);
+                    AuthResponse.User user = authResponse.getUser();
+                    createUserProfile(phone, password, user != null ? user.getId() : null);
                     
                 } else {
                     String errorMessage = "Signup failed";
@@ -376,9 +396,10 @@ public class LoginActivity extends AppCompatActivity {
         SharedPreferences.Editor editor = prefs.edit();
         
         // Save userId (from auth response)
-        if (user != null && user.id != null) {
-            editor.putString("userId", user.id);
-            editor.putString("user_id", user.id); // Keep both for compatibility
+        if (user != null && user.getId() != null) {
+            String userId = user.getId();
+            editor.putString("userId", userId);
+            editor.putString("user_id", userId); // Keep both for compatibility
         } else {
             // Generate temp ID if auth didn't return one
             String tempId = "user_" + System.currentTimeMillis();
