@@ -12,6 +12,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.smsindia.app.R;
+import com.smsindia.app.config.Constants;
 import com.smsindia.app.service.SmsLogModel;
 import com.smsindia.app.service.SupabaseApi;
 
@@ -29,8 +30,6 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class DeliveryLogActivity extends AppCompatActivity {
 
-    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private LinearLayout logsContainer;
     private SupabaseApi supabaseApi;
@@ -45,7 +44,7 @@ public class DeliveryLogActivity extends AppCompatActivity {
 
         // Init Retrofit
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(SUPABASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
         supabaseApi = retrofit.create(SupabaseApi.class);
@@ -68,7 +67,7 @@ public class DeliveryLogActivity extends AppCompatActivity {
     private String getAuthHeader() {
         SharedPreferences authPrefs = getSharedPreferences("SMS_AUTH", MODE_PRIVATE);
         String token = authPrefs.getString("jwt", null);
-        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+        return token != null ? "Bearer " + token : "Bearer " + Constants.SUPABASE_ANON_KEY;
     }
 
     private void loadLogs() {
@@ -80,7 +79,7 @@ public class DeliveryLogActivity extends AppCompatActivity {
         String authHeader = getAuthHeader();
 
         // Fetch logs: WHERE user_id = UUID ORDER BY created_at DESC
-        supabaseApi.getSmsLogs(SUPABASE_KEY, authHeader, "eq." + userIdUUID, "created_at.desc")
+        supabaseApi.getSmsLogs(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + userIdUUID, "created_at.desc")
             .enqueue(new Callback<List<SmsLogModel>>() {
                 @Override
                 public void onResponse(Call<List<SmsLogModel>> call, Response<List<SmsLogModel>> response) {

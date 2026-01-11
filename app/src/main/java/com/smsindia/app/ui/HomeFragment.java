@@ -33,6 +33,7 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 import com.google.gson.internal.LinkedTreeMap;
 
 import com.smsindia.app.R;
+import com.smsindia.app.config.Constants;
 import com.smsindia.app.service.AdRewardResponse;
 import com.smsindia.app.service.AppConfigModel;
 import com.smsindia.app.service.SupabaseApi;
@@ -50,12 +51,7 @@ import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
-public class HomeFragment extends Fragment {
-
-    // --- CONFIG ---
-    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
-    private static final String FALLBACK_AD_ID = "ca-app-pub-3940256099942544/5224354917"; 
+public class HomeFragment extends Fragment { 
 
     // --- UI VARIABLES ---
     private TextView tvBalanceAmount, tvTodayEarnings, tvTotalEarnings, tvUserMobile;
@@ -91,7 +87,7 @@ public class HomeFragment extends Fragment {
 
         // 1. Setup API
         supabaseApi = new Retrofit.Builder()
-                .baseUrl(SUPABASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(SupabaseApi.class);
@@ -153,7 +149,7 @@ public class HomeFragment extends Fragment {
     private String getAuthHeader() {
         SharedPreferences authPrefs = requireActivity().getSharedPreferences("SMS_AUTH", Context.MODE_PRIVATE);
         String token = authPrefs.getString("jwt", null);
-        return token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+        return token != null ? "Bearer " + token : "Bearer " + Constants.SUPABASE_ANON_KEY;
     }
 
     private void fetchUserBalance() {
@@ -162,7 +158,7 @@ public class HomeFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber)
+        supabaseApi.getUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber)
             .enqueue(new Callback<List<UserModel>>() {
                 @Override
                 public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
@@ -215,7 +211,7 @@ public class HomeFragment extends Fragment {
             // Use JWT token for authorization
             String authHeader = getAuthHeader();
 
-            supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq.whatsapp_config")
+            supabaseApi.getConfig(Constants.SUPABASE_ANON_KEY, authHeader, "eq.whatsapp_config")
                 .enqueue(new Callback<List<AppConfigModel>>() {
                     @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                         String url = ""; boolean active = false;
@@ -275,7 +271,7 @@ public class HomeFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.claimDailyCheckin(SUPABASE_KEY, authHeader, body).enqueue(new Callback<Void>() {
+        supabaseApi.claimDailyCheckin(Constants.SUPABASE_ANON_KEY, authHeader, body).enqueue(new Callback<Void>() {
             @Override public void onResponse(Call<Void> c, Response<Void> r) {
                 if(r.isSuccessful()) { 
                     Toast.makeText(getContext(), "✅ Success!", Toast.LENGTH_LONG).show(); 
@@ -292,7 +288,7 @@ public class HomeFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq.earn_more_config").enqueue(new Callback<List<AppConfigModel>>() {
+        supabaseApi.getConfig(Constants.SUPABASE_ANON_KEY, authHeader, "eq.earn_more_config").enqueue(new Callback<List<AppConfigModel>>() {
             @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                 if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
                     String url = (String)((LinkedTreeMap)r.body().get(0).value).get("url");
@@ -312,7 +308,7 @@ public class HomeFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.getConfig(SUPABASE_KEY, authHeader, "eq.admob_config").enqueue(new Callback<List<AppConfigModel>>() {
+        supabaseApi.getConfig(Constants.SUPABASE_ANON_KEY, authHeader, "eq.admob_config").enqueue(new Callback<List<AppConfigModel>>() {
             @Override public void onResponse(Call<List<AppConfigModel>> c, Response<List<AppConfigModel>> r) {
                 try {
                     if(r.isSuccessful() && r.body() != null && !r.body().isEmpty()) {
@@ -331,7 +327,7 @@ public class HomeFragment extends Fragment {
         });
     }
 
-    private void useFallbackAds() { adUnitList.add(FALLBACK_AD_ID); loadAd(); }
+    private void useFallbackAds() { adUnitList.add(Constants.FALLBACK_AD_UNIT_ID); loadAd(); }
 
     private void loadAd() {
         if (adUnitList.isEmpty() || getContext() == null) return;
@@ -366,7 +362,7 @@ public class HomeFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.watchAdReward(SUPABASE_KEY, authHeader, body).enqueue(new Callback<AdRewardResponse>() {
+        supabaseApi.watchAdReward(Constants.SUPABASE_ANON_KEY, authHeader, body).enqueue(new Callback<AdRewardResponse>() {
             @Override 
             public void onResponse(Call<AdRewardResponse> call, Response<AdRewardResponse> response) {
                 if(response.isSuccessful() && response.body() != null) {
@@ -396,7 +392,7 @@ public class HomeFragment extends Fragment {
         // Use JWT token for authorization
         String authHeader = getAuthHeader();
         
-        supabaseApi.getUser(SUPABASE_KEY, authHeader, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
+        supabaseApi.getUser(Constants.SUPABASE_ANON_KEY, authHeader, "eq." + mobileNumber).enqueue(new Callback<List<UserModel>>() {
             @Override 
             public void onResponse(Call<List<UserModel>> call, Response<List<UserModel>> response) {
                 if(response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {

@@ -12,6 +12,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import com.smsindia.app.config.Constants;
 import com.smsindia.app.service.*;
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -32,9 +33,6 @@ public class LoginActivity extends AppCompatActivity {
     private SupabaseApi supabaseApi;
     private TokenManager tokenManager;
     
-    private static final String BASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
-    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -53,7 +51,7 @@ public class LoginActivity extends AppCompatActivity {
         
         // Initialize Retrofit
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(BASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
         
@@ -77,14 +75,14 @@ public class LoginActivity extends AppCompatActivity {
     
     private boolean isUserDataSaved() {
         // Check if user data exists in SMSINDIA_USER SharedPreferences
-        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
-        String userId = prefs.getString("userId", null);
-        String mobile = prefs.getString("mobile", null);
+        SharedPreferences prefs = getSharedPreferences(Constants.PREFS_USER, MODE_PRIVATE);
+        String userId = prefs.getString(Constants.PREFS_USER_ID, null);
+        String mobile = prefs.getString(Constants.PREFS_MOBILE, null);
         return userId != null && !userId.isEmpty() && mobile != null && !mobile.isEmpty();
     }
     
     private String getOrCreateDeviceId() {
-        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences(Constants.PREFS_USER, MODE_PRIVATE);
         String deviceId = prefs.getString("device_id", null);
         
         if (deviceId == null || deviceId.isEmpty()) {
@@ -131,7 +129,7 @@ public class LoginActivity extends AppCompatActivity {
         request.email = email;
         request.password = password;
         
-        Call<AuthResponse> call = authApi.login(API_KEY, request);
+        Call<AuthResponse> call = authApi.login(Constants.SUPABASE_ANON_KEY, request);
         call.enqueue(new Callback<AuthResponse>() {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
@@ -215,7 +213,7 @@ public class LoginActivity extends AppCompatActivity {
         request.email = email;
         request.password = password;
         
-        Call<AuthResponse> call = authApi.signup(API_KEY, request);
+        Call<AuthResponse> call = authApi.signup(Constants.SUPABASE_ANON_KEY, request);
         call.enqueue(new Callback<AuthResponse>() {
             @Override
             public void onResponse(Call<AuthResponse> call, Response<AuthResponse> response) {
@@ -302,7 +300,7 @@ public class LoginActivity extends AppCompatActivity {
         Map<String, String> request = new HashMap<>();
         request.put("email", email);
         
-        Call<Void> call = authApi.resetPassword(API_KEY, request);
+        Call<Void> call = authApi.resetPassword(Constants.SUPABASE_ANON_KEY, request);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
@@ -345,7 +343,7 @@ public class LoginActivity extends AppCompatActivity {
         String token = tokenManager.getToken();
         if (token == null) return;
         
-        Call<Void> call = supabaseApi.createUser(API_KEY, token, "return=representation", userData);
+        Call<Void> call = supabaseApi.createUser(Constants.SUPABASE_ANON_KEY, token, Constants.PREFER_RETURN_REPRESENTATION, userData);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
@@ -376,7 +374,7 @@ public class LoginActivity extends AppCompatActivity {
         updateData.put("device_id", getOrCreateDeviceId());
         
         // Update by phone
-        Call<Void> call = supabaseApi.updateUser(API_KEY, token, "phone=" + phone, updateData);
+        Call<Void> call = supabaseApi.updateUser(Constants.SUPABASE_ANON_KEY, token, "phone=" + phone, updateData);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
@@ -392,23 +390,23 @@ public class LoginActivity extends AppCompatActivity {
     
     private void saveUserInfo(AuthResponse.User user, String phone) {
         // ✅ ONLY save to SMSINDIA_USER (MainActivity checks this)
-        SharedPreferences prefs = getSharedPreferences("SMSINDIA_USER", MODE_PRIVATE);
+        SharedPreferences prefs = getSharedPreferences(Constants.PREFS_USER, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
         
         // Save userId (from auth response)
         if (user != null && user.getId() != null) {
             String userId = user.getId();
-            editor.putString("userId", userId);
+            editor.putString(Constants.PREFS_USER_ID, userId);
             editor.putString("user_id", userId); // Keep both for compatibility
         } else {
             // Generate temp ID if auth didn't return one
             String tempId = "user_" + System.currentTimeMillis();
-            editor.putString("userId", tempId);
+            editor.putString(Constants.PREFS_USER_ID, tempId);
             editor.putString("user_id", tempId);
         }
         
         // Save phone
-        editor.putString("mobile", phone);
+        editor.putString(Constants.PREFS_MOBILE, phone);
         editor.putString("user_phone", phone); // Keep both for compatibility
         
         // Save email
@@ -431,8 +429,8 @@ public class LoginActivity extends AppCompatActivity {
         
         // Debug log
         Log.d("LoginActivity", "User saved to SMSINDIA_USER: saved=" + saved + 
-              ", userId=" + prefs.getString("userId", "null") + 
-              ", mobile=" + prefs.getString("mobile", "null") +
+              ", userId=" + prefs.getString(Constants.PREFS_USER_ID, "null") + 
+              ", mobile=" + prefs.getString(Constants.PREFS_MOBILE, "null") +
               ", token=" + (token != null ? "exists" : "null"));
     }
     

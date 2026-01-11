@@ -19,6 +19,26 @@ android {
         versionName "1.0." + buildNumber
         // ------------------------------------
 
+        // --- 🔐 SECURE CONFIGURATION ---
+        // Load sensitive data from local.properties or environment variables
+        def localProperties = new Properties()
+        def localPropertiesFile = rootProject.file('local.properties')
+        if (localPropertiesFile.exists()) {
+            localPropertiesFile.withInputStream { localProperties.load(it) }
+        }
+        
+        // Supabase configuration - prioritize environment variables over local.properties
+        def supabaseUrl = System.getenv("SUPABASE_URL") ?: 
+                         localProperties.getProperty('supabase.url') ?: 
+                         "https://appfwrpynfxfpcvpavso.supabase.co"
+        def supabaseKey = System.getenv("SUPABASE_ANON_KEY") ?: 
+                         localProperties.getProperty('supabase.anon.key') ?: 
+                         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY"
+        
+        buildConfigField "String", "SUPABASE_URL", "\"${supabaseUrl}\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"${supabaseKey}\""
+        // ------------------------------------
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -37,6 +57,7 @@ android {
 
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 }
 

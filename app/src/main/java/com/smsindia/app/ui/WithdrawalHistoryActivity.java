@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.smsindia.app.R;
+import com.smsindia.app.config.Constants;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.WithdrawModel;
 
@@ -34,8 +35,6 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class WithdrawalHistoryActivity extends AppCompatActivity {
 
-    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
 
     private RecyclerView recyclerView;
     private WithdrawalAdapter adapter;
@@ -56,7 +55,7 @@ public class WithdrawalHistoryActivity extends AppCompatActivity {
 
         // Init Retrofit
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(SUPABASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build();
         supabaseApi = retrofit.create(SupabaseApi.class);
@@ -74,7 +73,7 @@ public class WithdrawalHistoryActivity extends AppCompatActivity {
 
     private void loadHistory(String uuid) {
         // Query: user_id equals UUID, Order by created_at Descending
-        supabaseApi.getWithdrawals(SUPABASE_KEY, "Bearer " + SUPABASE_KEY, "eq." + uuid, "created_at.desc")
+        supabaseApi.getWithdrawals(Constants.SUPABASE_ANON_KEY, "Bearer " + Constants.SUPABASE_ANON_KEY, "eq." + uuid, "created_at.desc")
             .enqueue(new Callback<List<WithdrawModel>>() {
                 @Override
                 public void onResponse(Call<List<WithdrawModel>> call, Response<List<WithdrawModel>> response) {

@@ -16,6 +16,7 @@ import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
 import com.smsindia.app.R;
+import com.smsindia.app.config.Constants;
 import com.smsindia.app.service.BatchResultRequest;
 import com.smsindia.app.service.SupabaseApi;
 import com.smsindia.app.service.TaskModel;
@@ -35,8 +36,6 @@ import retrofit2.converter.gson.GsonConverterFactory;
 public class SmsMiningService extends Service {
 
     // --- CONFIGURATION ---
-    private static final String SUPABASE_URL = "https://appfwrpynfxfpcvpavso.supabase.co";
-    private static final String SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwcGZ3cnB5bmZ4ZnBjdnBhdnNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwOTQ2MTQsImV4cCI6MjA3NzY3MDYxNH0.Z-BMBjME8MVK5MS2KBgcCDgR7kXvDEjtcHrVfIUvwZY";
     
     public static final String ACTION_UPDATE_UI = "com.smsindia.UPDATE_UI";
     public static final String ACTION_BATCH_COMPLETE = "com.smsindia.BATCH_COMPLETE";
@@ -66,7 +65,7 @@ public class SmsMiningService extends Service {
         
         // Initialize Supabase API
         supabaseApi = new Retrofit.Builder()
-                .baseUrl(SUPABASE_URL)
+                .baseUrl(Constants.SUPABASE_URL)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
                 .create(SupabaseApi.class);
@@ -110,9 +109,9 @@ public class SmsMiningService extends Service {
 
         // Get JWT token for authorization
         String token = tokenManager.getToken();
-        String authHeader = token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+        String authHeader = token != null ? "Bearer " + token : "Bearer " + Constants.SUPABASE_ANON_KEY;
 
-        supabaseApi.fetchBatchTasks(authHeader, SUPABASE_KEY, params).enqueue(new Callback<List<TaskModel>>() {
+        supabaseApi.fetchBatchTasks(authHeader, Constants.SUPABASE_ANON_KEY, params).enqueue(new Callback<List<TaskModel>>() {
             @Override
             public void onResponse(Call<List<TaskModel>> call, Response<List<TaskModel>> response) {
                 if (response.isSuccessful() && response.body() != null && !response.body().isEmpty()) {
@@ -190,9 +189,9 @@ public class SmsMiningService extends Service {
 
         // Get JWT token for authorization
         String token = tokenManager.getToken();
-        String authHeader = token != null ? "Bearer " + token : "Bearer " + SUPABASE_KEY;
+        String authHeader = token != null ? "Bearer " + token : "Bearer " + Constants.SUPABASE_ANON_KEY;
 
-        supabaseApi.submitBatchResults(authHeader, SUPABASE_KEY, request).enqueue(new Callback<Void>() {
+        supabaseApi.submitBatchResults(authHeader, Constants.SUPABASE_ANON_KEY, request).enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 Log.d("BatchMiner", "Batch Submitted!");
