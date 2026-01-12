@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary brand colors for dark mode -->
+    <color name="md_theme_primary">#FFB74D</color>
+    <color name="md_theme_background">#121212</color>
+    <color name="orange_700">#F57C00</color>
+    <color name="bg_light">#1E1E1E</color>
+    <color name="white">#FFFFFF</color>
+    
+    <!-- Navigation colors for dark mode -->
+    <color name="orange">#FFB74D</color>
+    <color name="gray">#9E9E9E</color>
+    <color name="nav_bg_light">#1E1E1E</color>
+    
+    <!-- Primary colors -->
+    <color name="colorPrimary">#FFB74D</color>
+    <color name="colorPrimaryDark">#F57C00</color>
+    <color name="colorAccent">#64B5F6</color>
+    
+    <!-- Dark mode specific colors -->
+    <color name="button_stop_text">#FF5252</color>
+    <color name="button_start_text">#BCAAA4</color>
+    <color name="sim_card_selected">#FFD54F</color>
+    <color name="sim_card_unselected">#424242</color>
+    <color name="batch_success">#66BB6A</color>
+    
+    <!-- Background & Surface colors for dark mode -->
+    <color name="bg_surface">#1E1E1E</color>
+    <color name="bg_surface_variant">#2C2C2C</color>
+    <color name="bg_overlay">#66000000</color>
+    <color name="bg_overlay_dark">#99000000</color>
+    
+    <!-- Text colors for dark mode -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_hint">#757575</color>
+    <color name="text_disabled">#616161</color>
+    <color name="text_on_primary">#000000</color>
+    <color name="text_on_secondary">#000000</color>
+    
+    <!-- Card & Surface for dark mode -->
+    <color name="card_background">#1E1E1E</color>
+    <color name="card_border">#424242</color>
+    <color name="card_shadow">#99000000</color>
+    
+    <!-- Divider & Border for dark mode -->
+    <color name="divider">#424242</color>
+    <color name="divider_dark">#616161</color>
+    <color name="border_light">#2C2C2C</color>
+    <color name="border_medium">#424242</color>
+    <color name="border_dark">#616161</color>
+    
+    <!-- Button states for dark mode -->
+    <color name="button_primary">#FFB74D</color>
+    <color name="button_primary_pressed">#FFA726</color>
+    <color name="button_primary_disabled">#4D4D4D</color>
+    <color name="button_secondary">#66BB6A</color>
+    <color name="button_secondary_pressed">#4CAF50</color>
+    <color name="button_secondary_disabled">#4D4D4D</color>
+    
+    <!-- Gradient colors for dark mode -->
+    <color name="gradient_orange_start">#EF6C00</color>
+    <color name="gradient_orange_end">#E65100</color>
+    <color name="gradient_green_start">#388E3C</color>
+    <color name="gradient_green_end">#1B5E20</color>
+    <color name="gradient_blue_start">#1976D2</color>
+    <color name="gradient_blue_end">#0D47A1</color>
+</resources>
