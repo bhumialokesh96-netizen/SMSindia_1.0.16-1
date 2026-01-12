@@ -308,7 +308,7 @@ public class LoginActivity extends AppCompatActivity {
                         (response.code() >= 500 || response.code() == 408 || response.code() == 429)) {
                         Log.d("LoginActivity", "Retrying profile creation, attempt " + (attemptCount + 2));
                         // Retry after a delay
-                        new android.os.Handler().postDelayed(() -> 
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> 
                             createUserProfileWithRetry(phone, password, userId, attemptCount + 1),
                             1000 * (attemptCount + 1) // Exponential backoff: 1s, 2s, 3s
                         );
@@ -328,7 +328,7 @@ public class LoginActivity extends AppCompatActivity {
                 // Retry logic for network failures
                 if (attemptCount < Constants.NETWORK_RETRY_ATTEMPTS - 1) {
                     Log.d("LoginActivity", "Retrying profile creation due to network error, attempt " + (attemptCount + 2));
-                    new android.os.Handler().postDelayed(() -> 
+                    new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> 
                         createUserProfileWithRetry(phone, password, userId, attemptCount + 1),
                         1000 * (attemptCount + 1) // Exponential backoff
                     );
