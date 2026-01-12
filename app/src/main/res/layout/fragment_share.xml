@@ -1,293 +1,301 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:fillViewport="true"
     android:background="#F5F5F5">
 
-    <!-- HEADER: Dark Green -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#1B5E20"
-        android:orientation="vertical"
-        android:padding="24dp"
-        android:paddingBottom="40dp">
+        android:orientation="vertical">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Refer &amp; Earn"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            android:textStyle="bold"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Invite friends and earn spin coins!"
-            android:textColor="#C8E6C9"
-            android:layout_marginTop="4dp"
-            android:textSize="14sp"/>
-    </LinearLayout>
-
-    <!-- OVERLAPPING STATS CARD -->
-    <com.google.android.material.card.MaterialCardView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginTop="-30dp"
-        app:cardCornerRadius="16dp"
-        app:cardElevation="8dp"
-        app:cardBackgroundColor="#FFFFFF"
-        app:strokeColor="#FFC107"
-        app:strokeWidth="3dp">
-
+        <!-- HEADER: Dark Green -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="#1B5E20"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:padding="24dp"
+            android:paddingBottom="40dp">
 
-            <!-- Referral Benefits Banner -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardBackgroundColor="#E3F2FD"
-                app:cardElevation="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="🎁 How Referral Works"
-                        android:textColor="#1976D2"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:layout_marginBottom="8dp"/>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="✓ Your friend gets: ₹5 + 50 coins\n✓ You get: ₹10 per referral\n✓ Unlimited referrals = Unlimited earnings!"
-                        android:textColor="#0D47A1"
-                        android:textSize="12sp"
-                        android:lineSpacingExtra="2dp"/>
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Stats Row -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:baselineAligned="false">
-
-                <!-- Referrals -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
-                    <TextView
-                        android:id="@+id/tv_total_referrals"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0"
-                        android:textSize="22sp"
-                        android:textStyle="bold"
-                        android:textColor="#1B5E20"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Friends"
-                        android:textSize="12sp"
-                        android:textColor="#757575"/>
-                </LinearLayout>
-
-                <!-- Earnings -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
-                    <TextView
-                        android:id="@+id/tv_referral_earnings"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="₹0.0"
-                        android:textSize="22sp"
-                        android:textStyle="bold"
-                        android:textColor="#1B5E20"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Earnings"
-                        android:textSize="12sp"
-                        android:textColor="#757575"/>
-                </LinearLayout>
-
-                <!-- Coins -->
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="center"
-                    android:orientation="vertical">
-                    <TextView
-                        android:id="@+id/tv_total_coins"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0"
-                        android:textSize="22sp"
-                        android:textStyle="bold"
-                        android:textColor="#FFC107"/>
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Coins"
-                        android:textSize="12sp"
-                        android:textColor="#757575"/>
-                </LinearLayout>
-            </LinearLayout>
-            
-            <!-- Tier Display -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#E0E0E0"
-                android:layout_marginTop="16dp"
-                android:layout_marginBottom="12dp"/>
-            
-            <TextView
-                android:id="@+id/tv_tier_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="🏅 Bronze Tier"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="@color/tier_bronze"
-                android:gravity="center"/>
-            
-            <TextView
-                android:id="@+id/tv_tier_progress"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="🎯 6 more referrals to next tier"
-                android:textSize="13sp"
-                android:textColor="@color/gray_600"
-                android:gravity="center"
-                android:layout_marginTop="4dp"
-                android:visibility="visible"/>
-
-            <!-- Divider -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#E0E0E0"
-                android:layout_marginVertical="16dp"/>
-
-            <!-- Refer Code Section -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="YOUR REFERRAL CODE"
-                android:textSize="12sp"
-                android:textColor="#757575"
-                android:layout_gravity="center"/>
+                android:text="Refer &amp; Earn"
+                android:textColor="#FFFFFF"
+                android:textSize="24sp"
+                android:textStyle="bold"/>
 
             <TextView
-                android:id="@+id/tv_share_code"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="LOADING..."
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:textColor="#1B5E20"
-                android:gravity="center"
-                android:letterSpacing="0.1"
-                android:background="@drawable/bg_orange_border"
-                android:padding="12dp"
-                android:layout_marginTop="8dp"/>
+                android:text="Invite friends and earn spin coins!"
+                android:textColor="#C8E6C9"
+                android:layout_marginTop="4dp"
+                android:textSize="14sp"/>
+        </LinearLayout>
 
-            <!-- 3D Gold Share Button -->
-            <Button
-                android:id="@+id/btn_share_app"
-                android:layout_width="match_parent"
-                android:layout_height="55dp"
-                android:text="SHARE APP NOW"
-                android:textSize="16sp"
-                android:textStyle="bold"
-                android:textColor="#5D4037"
-                android:background="@drawable/bg_gold_3d"
-                app:backgroundTint="@null"
-                android:layout_marginTop="16dp"/>
-            
-            <!-- Navigation Buttons -->
+        <!-- OVERLAPPING STATS CARD -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="-30dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="8dp"
+            app:cardBackgroundColor="#FFFFFF"
+            app:strokeColor="#FFC107"
+            app:strokeWidth="3dp">
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:layout_marginTop="12dp">
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <!-- Referral Benefits Banner -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="16dp"
+                    app:cardCornerRadius="12dp"
+                    app:cardBackgroundColor="#E3F2FD"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="12dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="🎁 How Referral Works"
+                            android:textColor="#1976D2"
+                            android:textSize="14sp"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="8dp"/>
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="✓ Your friend gets: ₹5 + 50 coins\n✓ You get: ₹10 per referral\n✓ Unlimited referrals = Unlimited earnings!"
+                            android:textColor="#0D47A1"
+                            android:textSize="12sp"
+                            android:lineSpacingExtra="2dp"/>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Stats Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:baselineAligned="false">
+
+                    <!-- Referrals -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/tv_total_referrals"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="#1B5E20"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Friends"
+                            android:textSize="12sp"
+                            android:textColor="#757575"/>
+                    </LinearLayout>
+
+                    <!-- Earnings -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/tv_referral_earnings"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="₹0.0"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="#1B5E20"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Earnings"
+                            android:textSize="12sp"
+                            android:textColor="#757575"/>
+                    </LinearLayout>
+
+                    <!-- Coins -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="center"
+                        android:orientation="vertical">
+                        <TextView
+                            android:id="@+id/tv_total_coins"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="#FFC107"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Coins"
+                            android:textSize="12sp"
+                            android:textColor="#757575"/>
+                    </LinearLayout>
+                </LinearLayout>
                 
-                <Button
-                    android:id="@+id/btn_leaderboard"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_weight="1"
-                    android:text="🏆 Leaderboard"
-                    android:textSize="13sp"
-                    android:textColor="#FFFFFF"
-                    android:background="@drawable/bg_orange_border"
-                    android:backgroundTint="#1B5E20"
-                    android:layout_marginEnd="6dp"/>
+                <!-- Tier Display -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="12dp"/>
                 
-                <Button
-                    android:id="@+id/btn_analytics"
-                    android:layout_width="0dp"
-                    android:layout_height="48dp"
-                    android:layout_weight="1"
-                    android:text="📊 Analytics"
+                <TextView
+                    android:id="@+id/tv_tier_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🏅 Bronze Tier"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/tier_bronze"
+                    android:gravity="center"/>
+                
+                <TextView
+                    android:id="@+id/tv_tier_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🎯 6 more referrals to next tier"
                     android:textSize="13sp"
-                    android:textColor="#FFFFFF"
+                    android:textColor="@color/gray_600"
+                    android:gravity="center"
+                    android:layout_marginTop="4dp"
+                    android:visibility="visible"/>
+
+                <!-- Divider -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="#E0E0E0"
+                    android:layout_marginVertical="16dp"/>
+
+                <!-- Refer Code Section -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="YOUR REFERRAL CODE"
+                    android:textSize="12sp"
+                    android:textColor="#757575"
+                    android:layout_gravity="center"/>
+
+                <TextView
+                    android:id="@+id/tv_share_code"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="LOADING..."
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:textColor="#1B5E20"
+                    android:gravity="center"
+                    android:letterSpacing="0.1"
                     android:background="@drawable/bg_orange_border"
-                    android:backgroundTint="#1976D2"
-                    android:layout_marginStart="6dp"/>
+                    android:padding="12dp"
+                    android:layout_marginTop="8dp"/>
+
+                <!-- 3D Gold Share Button -->
+                <Button
+                    android:id="@+id/btn_share_app"
+                    android:layout_width="match_parent"
+                    android:layout_height="55dp"
+                    android:text="SHARE APP NOW"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:textColor="#5D4037"
+                    android:background="@drawable/bg_gold_3d"
+                    app:backgroundTint="@null"
+                    android:layout_marginTop="16dp"/>
+                
+                <!-- Navigation Buttons -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="12dp">
+                    
+                    <Button
+                        android:id="@+id/btn_leaderboard"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="🏆 Leaderboard"
+                        android:textSize="13sp"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/bg_orange_border"
+                        android:backgroundTint="#1B5E20"
+                        android:layout_marginEnd="6dp"/>
+                    
+                    <Button
+                        android:id="@+id/btn_analytics"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="📊 Analytics"
+                        android:textSize="13sp"
+                        android:textColor="#FFFFFF"
+                        android:background="@drawable/bg_orange_border"
+                        android:backgroundTint="#1976D2"
+                        android:layout_marginStart="6dp"/>
+                </LinearLayout>
+
             </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+        <!-- MILESTONE LIST -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Milestones"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#1B5E20"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="10dp"/>
 
-    <!-- MILESTONE LIST -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Milestones"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:textColor="#1B5E20"
-        android:layout_marginStart="20dp"
-        android:layout_marginTop="20dp"
-        android:layout_marginBottom="10dp"/>
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_milestones"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:clipToPadding="false"
+            android:paddingBottom="20dp"
+            android:nestedScrollingEnabled="false"/>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_milestones"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:paddingHorizontal="16dp"
-        android:clipToPadding="false"
-        android:paddingBottom="20dp"/>
+    </LinearLayout>
 
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>

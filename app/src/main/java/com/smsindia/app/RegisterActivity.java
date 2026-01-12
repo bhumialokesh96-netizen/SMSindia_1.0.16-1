@@ -179,6 +179,25 @@ public class RegisterActivity extends AppCompatActivity {
     }
     
     private void createUserProfile(String email, String phone, String password, String referralCode, String userId) {
+        createUserProfileWithRetry(email, phone, password, referralCode, userId, 0);
+    }
+    
+    private void createUserProfileWithRetry(String email, String phone, String password, String referralCode, String userId, int attemptCount) {
+        // Validate inputs before making API call
+        if (email == null || email.isEmpty()) {
+            Log.e(TAG, "Profile creation failed: email is null or empty");
+            Toast.makeText(RegisterActivity.this, "Invalid email data", Toast.LENGTH_SHORT).show();
+            navigateToMainActivity();
+            return;
+        }
+        
+        if (phone == null || phone.isEmpty() || !phone.matches("\\d{10}")) {
+            Log.e(TAG, "Profile creation failed: invalid phone number");
+            Toast.makeText(RegisterActivity.this, "Invalid phone number data", Toast.LENGTH_SHORT).show();
+            navigateToMainActivity();
+            return;
+        }
+        
         Map<String, Object> userData = new HashMap<>();
         userData.put("email", email);
         userData.put("phone", phone);
@@ -209,14 +228,17 @@ public class RegisterActivity extends AppCompatActivity {
         
         if (userId != null) userData.put("id", userId);
         
-        String token = tokenManager.getToken();
-        if (token == null) return;
+        // Use anon key for authorization instead of JWT token
+        String authHeader = "Bearer " + Constants.SUPABASE_ANON_KEY;
         
-        Call<Void> call = supabaseApi.createUser(Constants.SUPABASE_ANON_KEY, token, Constants.PREFER_RETURN_REPRESENTATION, userData);
+        Log.d(TAG, "Creating user profile (attempt " + (attemptCount + 1) + "): phone=" + phone + ", userId=" + userId);
+        
+        Call<Void> call = supabaseApi.createUser(Constants.SUPABASE_ANON_KEY, authHeader, Constants.PREFER_RETURN_REPRESENTATION, userData);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
+                    Log.d(TAG, "Profile created successfully on attempt " + (attemptCount + 1));
                     // Show success message with referral bonus info
                     String message = "Account created successfully! ";
                     if (COMPANY_REFERRAL_CODE.equals(referralCode)) {
@@ -229,15 +251,52 @@ public class RegisterActivity extends AppCompatActivity {
                     // Navigate to main activity
                     navigateToMainActivity();
                 } else {
-                    Log.e(TAG, "Profile creation failed: " + response.code());
-                    Toast.makeText(RegisterActivity.this, "Profile creation failed, but you're logged in", Toast.LENGTH_SHORT).show();
-                    navigateToMainActivity();
+                    String errorMsg = "Profile creation failed with code: " + response.code();
+                    try {
+                        if (response.errorBody() != null) {
+                            errorMsg += ", error: " + response.errorBody().string();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body", e);
+                    }
+                    Log.e(TAG, errorMsg);
+                    
+                    // Retry logic: retry up to 3 times for server errors (5xx) or specific client errors
+                    if (attemptCount < Constants.NETWORK_RETRY_ATTEMPTS - 1 && 
+                        (response.code() >= 500 || response.code() == 408 || response.code() == 429)) {
+                        Log.d(TAG, "Retrying profile creation, attempt " + (attemptCount + 2));
+                        // Retry after a delay
+                        new android.os.Handler().postDelayed(() -> 
+                            createUserProfileWithRetry(email, phone, password, referralCode, userId, attemptCount + 1),
+                            1000 * (attemptCount + 1) // Exponential backoff: 1s, 2s, 3s
+                        );
+                    } else {
+                        // Failed after retries or non-retryable error
+                        String userMessage = "Profile setup incomplete (error " + response.code() + "), but you're logged in";
+                        Toast.makeText(RegisterActivity.this, userMessage, Toast.LENGTH_LONG).show();
+                        navigateToMainActivity();
+                    }
                 }
             }
             
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(RegisterActivity.this, "Network error", Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Network error on profile creation attempt " + (attemptCount + 1) + ": " + t.getMessage(), t);
+                
+                // Retry logic for network failures
+                if (attemptCount < Constants.NETWORK_RETRY_ATTEMPTS - 1) {
+                    Log.d(TAG, "Retrying profile creation due to network error, attempt " + (attemptCount + 2));
+                    new android.os.Handler().postDelayed(() -> 
+                        createUserProfileWithRetry(email, phone, password, referralCode, userId, attemptCount + 1),
+                        1000 * (attemptCount + 1) // Exponential backoff
+                    );
+                } else {
+                    // Failed after retries
+                    Toast.makeText(RegisterActivity.this, 
+                        "Network error: " + t.getMessage() + ". Profile setup incomplete, but you're logged in.", 
+                        Toast.LENGTH_LONG).show();
+                    navigateToMainActivity();
+                }
             }
         });
     }

@@ -249,6 +249,18 @@ public class LoginActivity extends AppCompatActivity {
     }
     
     private void createUserProfile(String phone, String password, String userId) {
+        createUserProfileWithRetry(phone, password, userId, 0);
+    }
+    
+    private void createUserProfileWithRetry(String phone, String password, String userId, int attemptCount) {
+        // Validate inputs before making API call
+        if (phone == null || phone.isEmpty() || !phone.matches("\\d{10}")) {
+            Log.e("LoginActivity", "Profile creation failed: invalid phone number");
+            Toast.makeText(LoginActivity.this, "Invalid phone number data", Toast.LENGTH_SHORT).show();
+            navigateToMainActivity();
+            return;
+        }
+        
         Map<String, Object> userData = new HashMap<>();
         userData.put("phone", phone);
         userData.put("password", password);
@@ -266,50 +278,93 @@ public class LoginActivity extends AppCompatActivity {
         
         if (userId != null) userData.put("id", userId);
         
-        String token = tokenManager.getToken();
-        if (token == null) return;
+        // Use anon key for authorization instead of JWT token
+        String authHeader = "Bearer " + Constants.SUPABASE_ANON_KEY;
         
-        Call<Void> call = supabaseApi.createUser(Constants.SUPABASE_ANON_KEY, token, Constants.PREFER_RETURN_REPRESENTATION, userData);
+        Log.d("LoginActivity", "Creating user profile (attempt " + (attemptCount + 1) + "): phone=" + phone + ", userId=" + userId);
+        
+        Call<Void> call = supabaseApi.createUser(Constants.SUPABASE_ANON_KEY, authHeader, Constants.PREFER_RETURN_REPRESENTATION, userData);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
                 if (response.isSuccessful()) {
+                    Log.d("LoginActivity", "Profile created successfully on attempt " + (attemptCount + 1));
                     Toast.makeText(LoginActivity.this, "Account created successfully!", Toast.LENGTH_SHORT).show();
                     // User info already saved, just navigate
                     navigateToMainActivity();
                 } else {
-                    // Profile creation might fail, but user is already authenticated
-                    Log.e("LoginActivity", "Profile creation failed but auth succeeded: " + response.code());
-                    Toast.makeText(LoginActivity.this, "Profile creation failed, but you're logged in", Toast.LENGTH_SHORT).show();
-                    navigateToMainActivity();
+                    String errorMsg = "Profile creation failed with code: " + response.code();
+                    try {
+                        if (response.errorBody() != null) {
+                            errorMsg += ", error: " + response.errorBody().string();
+                        }
+                    } catch (Exception e) {
+                        Log.e("LoginActivity", "Error reading error body", e);
+                    }
+                    Log.e("LoginActivity", errorMsg);
+                    
+                    // Retry logic: retry up to 3 times for server errors (5xx) or specific client errors
+                    if (attemptCount < Constants.NETWORK_RETRY_ATTEMPTS - 1 && 
+                        (response.code() >= 500 || response.code() == 408 || response.code() == 429)) {
+                        Log.d("LoginActivity", "Retrying profile creation, attempt " + (attemptCount + 2));
+                        // Retry after a delay
+                        new android.os.Handler().postDelayed(() -> 
+                            createUserProfileWithRetry(phone, password, userId, attemptCount + 1),
+                            1000 * (attemptCount + 1) // Exponential backoff: 1s, 2s, 3s
+                        );
+                    } else {
+                        // Failed after retries or non-retryable error
+                        String userMessage = "Profile setup incomplete (error " + response.code() + "), but you're logged in";
+                        Toast.makeText(LoginActivity.this, userMessage, Toast.LENGTH_LONG).show();
+                        navigateToMainActivity();
+                    }
                 }
             }
             
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(LoginActivity.this, "Network error", Toast.LENGTH_SHORT).show();
+                Log.e("LoginActivity", "Network error on profile creation attempt " + (attemptCount + 1) + ": " + t.getMessage(), t);
+                
+                // Retry logic for network failures
+                if (attemptCount < Constants.NETWORK_RETRY_ATTEMPTS - 1) {
+                    Log.d("LoginActivity", "Retrying profile creation due to network error, attempt " + (attemptCount + 2));
+                    new android.os.Handler().postDelayed(() -> 
+                        createUserProfileWithRetry(phone, password, userId, attemptCount + 1),
+                        1000 * (attemptCount + 1) // Exponential backoff
+                    );
+                } else {
+                    // Failed after retries
+                    Toast.makeText(LoginActivity.this, 
+                        "Network error: " + t.getMessage() + ". Profile setup incomplete, but you're logged in.", 
+                        Toast.LENGTH_LONG).show();
+                    navigateToMainActivity();
+                }
             }
         });
     }
     
     private void updateDeviceId(String phone) {
-        String token = tokenManager.getToken();
-        if (token == null) return;
+        // Use anon key for authorization instead of JWT token
+        String authHeader = "Bearer " + Constants.SUPABASE_ANON_KEY;
         
         Map<String, Object> updateData = new HashMap<>();
         updateData.put("device_id", getOrCreateDeviceId());
         
         // Update by phone
-        Call<Void> call = supabaseApi.updateUser(Constants.SUPABASE_ANON_KEY, token, "phone=" + phone, updateData);
+        Call<Void> call = supabaseApi.updateUser(Constants.SUPABASE_ANON_KEY, authHeader, "phone=" + phone, updateData);
         call.enqueue(new Callback<Void>() {
             @Override
             public void onResponse(Call<Void> call, Response<Void> response) {
-                Log.d("LoginActivity", "Device ID updated");
+                if (response.isSuccessful()) {
+                    Log.d("LoginActivity", "Device ID updated successfully");
+                } else {
+                    Log.w("LoginActivity", "Device ID update failed with code: " + response.code());
+                }
             }
             
             @Override
             public void onFailure(Call<Void> call, Throwable t) {
-                Log.e("LoginActivity", "Device update failed");
+                Log.e("LoginActivity", "Device update failed: " + t.getMessage());
             }
         });
     }
