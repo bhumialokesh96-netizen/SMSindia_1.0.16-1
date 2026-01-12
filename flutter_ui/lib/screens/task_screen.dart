@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../services/sms_service.dart';
 import '../services/auth_service.dart';
 import '../constants/app_colors.dart';
+import '../constants/app_constants.dart';
 
 class TaskScreen extends StatefulWidget {
   const TaskScreen({super.key});
@@ -291,7 +292,7 @@ class _TaskScreenState extends State<TaskScreen>
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Earn ₹0.16 per SMS sent. Start mining to begin earning!',
+                          'Earn ₹${AppConstants.smsEarningRate.toStringAsFixed(2)} per SMS sent. Start mining to begin earning!',
                           style: TextStyle(
                             color: AppColors.info.shade900,
                             fontSize: 14,

@@ -32,8 +32,12 @@ class AuthService extends ChangeNotifier {
   /// Login user
   Future<bool> login(String mobile, String password) async {
     try {
-      // TODO: Implement actual API call
-      // This is a placeholder showing the structure
+      // TODO: Implement actual Supabase API call
+      // This is a placeholder implementation for demonstration
+      // Replace with actual authentication logic using:
+      // - Supabase Auth API
+      // - Token management
+      // - Error handling
       
       // Simulate API call
       await Future.delayed(const Duration(seconds: 1));
@@ -68,7 +72,8 @@ class AuthService extends ChangeNotifier {
     String? referralCode,
   }) async {
     try {
-      // TODO: Implement actual API call
+      // TODO: Implement actual Supabase API call for registration
+      // This is a placeholder - replace with real implementation
       await Future.delayed(const Duration(seconds: 1));
       
       // On success

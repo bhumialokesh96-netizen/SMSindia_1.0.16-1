@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 
 /// Service to handle SMS operations via Platform Channel
 /// Communicates with native Android SMS handling code
@@ -18,6 +19,7 @@ class SmsService extends ChangeNotifier {
   
   // SMS status stream
   Stream<Map<String, dynamic>>? _smsStatusStream;
+  StreamSubscription<Map<String, dynamic>>? _streamSubscription;
   
   // Getters
   bool get isServiceRunning => _isServiceRunning;
@@ -31,13 +33,19 @@ class SmsService extends ChangeNotifier {
     _initializeEventChannel();
   }
   
+  @override
+  void dispose() {
+    _streamSubscription?.cancel();
+    super.dispose();
+  }
+  
   /// Initialize event channel to receive SMS status updates
   void _initializeEventChannel() {
     _smsStatusStream = _eventChannel
         .receiveBroadcastStream()
         .map((event) => Map<String, dynamic>.from(event as Map));
     
-    _smsStatusStream?.listen((event) {
+    _streamSubscription = _smsStatusStream?.listen((event) {
       final String type = event['type'] ?? '';
       
       switch (type) {
