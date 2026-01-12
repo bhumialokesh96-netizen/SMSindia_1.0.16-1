@@ -103,9 +103,7 @@
                 android:layout_height="12dp"
                 android:max="1000"
                 android:progress="750"
-                android:progressDrawable="@drawable/progress_gradient"
-                android:progressTint="@color/primary_500"
-                android:background="@color/neutral_200" />
+                android:progressDrawable="@drawable/progress_gradient" />
         </LinearLayout>
 
         <!-- Milestones (Optional) -->
