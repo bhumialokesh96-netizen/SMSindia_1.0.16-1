@@ -139,6 +139,9 @@ public class ShareFragment extends Fragment {
         adapter = new MilestoneAdapter(milestoneList);
         recyclerMilestones.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerMilestones.setAdapter(adapter);
+        
+        // Disable nested scrolling to allow parent NestedScrollView to handle scrolling
+        recyclerMilestones.setNestedScrollingEnabled(false);
     }
 
     private void fetchUserData() {
