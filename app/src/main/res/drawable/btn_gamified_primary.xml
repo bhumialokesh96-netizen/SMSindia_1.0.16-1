@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <set>
+            <objectAnimator
+                android:duration="100"
+                android:propertyName="scaleX"
+                android:valueTo="0.95"
+                android:valueType="floatType" />
+            <objectAnimator
+                android:duration="100"
+                android:propertyName="scaleY"
+                android:valueTo="0.95"
+                android:valueType="floatType" />
+        </set>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FF9800"/>
+            <corners android:radius="24dp"/>
+        </shape>
+    </item>
+</selector>
